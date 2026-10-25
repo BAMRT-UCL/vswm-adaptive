@@ -1,0 +1,138 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Adaptive Visuospatial Working Memory</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #f5f7fa;
+      padding: 25px;
+    }
+
+    h1 { color: #253858; }
+
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
+      width: min(90vw, 350px);
+      margin: 25px auto;
+    }
+
+    .cell {
+      aspect-ratio: 1;
+      background: white;
+      border: 2px solid #9ca3af;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .target { background: #2563eb; }
+    .selected { background: #16a34a; }
+
+    button {
+      padding: 12px 24px;
+      margin: 8px;
+      font-size: 17px;
+      cursor: pointer;
+    }
+
+    #message { font-size: 20px; min-height: 30px; }
+  </style>
+</head>
+<body>
+
+  <h1>Spatial Memory Task</h1>
+  <p id="message">Press Start to begin.</p>
+
+  <div id="grid"></div>
+
+  <button id="startBtn" onclick="startTrial()">Start</button>
+  <button id="submitBtn" onclick="submitResponse()" hidden>
+    Submit
+  </button>
+
+  <p id="result"></p>
+
+  <script>
+    const grid = document.getElementById("grid");
+    const message = document.getElementById("message");
+    const startBtn = document.getElementById("startBtn");
+    const submitBtn = document.getElementById("submitBtn");
+
+    // Fixed stimulus for our first prototype.
+    const targets = [2, 11, 18];
+    const selected = new Set();
+    let phase = "ready";
+
+    for (let i = 0; i < 25; i++) {
+      const cell = document.createElement("button");
+      cell.className = "cell";
+      cell.type = "button";
+      cell.setAttribute("aria-label", `Location ${i + 1}`);
+      cell.onclick = () => selectCell(i);
+      grid.appendChild(cell);
+    }
+
+    const cells = Array.from(grid.children);
+
+    function renderGrid() {
+      cells.forEach((cell, i) => {
+        cell.classList.toggle(
+          "target", phase === "showing" && targets.includes(i)
+        );
+        cell.classList.toggle(
+          "selected", phase === "recall" && selected.has(i)
+        );
+        cell.disabled = phase !== "recall";
+      });
+    }
+
+    function startTrial() {
+      selected.clear();
+      document.getElementById("result").textContent = "";
+      startBtn.hidden = true;
+      submitBtn.hidden = true;
+      phase = "showing";
+      message.textContent = "Remember the blue squares.";
+      renderGrid();
+
+      setTimeout(() => {
+        phase = "recall";
+        message.textContent = "Select the squares you remember.";
+        submitBtn.hidden = false;
+        renderGrid();
+      }, 1500);
+    }
+
+    function selectCell(i) {
+      if (phase !== "recall") return;
+      if (selected.has(i)) selected.delete(i);
+      else if (selected.size < targets.length) selected.add(i);
+      renderGrid();
+    }
+
+    function submitResponse() {
+      if (phase !== "recall") return;
+      const correct = targets.filter(i => selected.has(i)).length;
+
+      phase = "finished";
+      renderGrid();
+      submitBtn.hidden = true;
+      startBtn.hidden = false;
+      startBtn.textContent = "Try Again";
+      message.textContent = "Trial complete.";
+
+      document.getElementById("result").textContent =
+        `You remembered ${correct} of ${targets.length} locations.`;
+    }
+
+    renderGrid();
+  </script>
+
+</body>
+</html>
