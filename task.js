@@ -1,11 +1,12 @@
 "use strict";
-// VSWM v0.2: provisional staircase, NOT calibrated Bayesian assessment.
-const CONFIG = { gridSize: 5, showMs: 1500, minLoad: 2, maxLoad: 8, maxTrials: 16, initialLoad: 3 };
+// VSWM v0.3: provisional staircase, NOT calibrated Bayesian assessment.
+const CONFIG = { gridSize: 5, showMs: 1500, minLoad: 2, maxLoad: 12, maxTrials: 20, initialLoad: 3 };
 const $ = id => document.getElementById(id);
 let bank = [], used = new Set(), history = [], current = null;
 let load = CONFIG.initialLoad, goodStreak = 0, poorStreak = 0;
 let phase = "setup", selected = new Set(), shownAt = 0, recallAt = 0, displayTimer = null;
 let participant = "", year = "", sessionId = "";
+let stage = "search", searchFailures = 0, threshold = null;
 const grid = $("grid");
 for (let i = 0; i < CONFIG.gridSize ** 2; i++) {
   const cell = document.createElement("button");
@@ -56,17 +57,33 @@ function start() {
   if (!participant || !year) return alert("Enter a participant code and year group.");
   sessionId = `vswm-${Date.now()}`;
   history = []; used = new Set(); load = CONFIG.initialLoad;
-  goodStreak = 0; poorStreak = 0;
+  goodStreak = 0; poorStreak = 0; stage = "search"; searchFailures = 0; threshold = null;
   $("setup").hidden = true; $("results").hidden = true; $("assessment").hidden = false;
   nextTrial();
 }
 function selectItem() {
-  // Prefer current load. If depleted, use the nearest load with unused items.
   const unused = bank.filter(item => !used.has(item.id));
   if (!unused.length) return null;
+  const exactLoad = unused.filter(item => item.load === load);
+  if (exactLoad.length) return exactLoad[0];
+  // Never silently substitute an easier item after exhausting the requested load.
+  // Choose the nearest unused load and record the actual load administered.
   unused.sort((a,b) => Math.abs(a.load-load)-Math.abs(b.load-load) || a.id.localeCompare(b.id));
   return unused[0];
 }
+function chooseMeasurementLoad() {
+  const recent = history.slice(-8);
+  const byLoad = new Map();
+  for (const r of recent) {
+    const arr = byLoad.get(r.load) || [];
+    arr.push(r.proportion - r.falseSelections / Math.max(1,r.load));
+    byLoad.set(r.load,arr);
+  }
+  const candidates = [...byLoad].map(([l,vals]) => ({load:l, mean:vals.reduce((a,b)=>a+b,0)/vals.length}));
+  const closest = candidates.sort((a,b)=>Math.abs(a.mean-0.7)-Math.abs(b.mean-0.7))[0];
+  return Math.max(CONFIG.minLoad,Math.min(CONFIG.maxLoad, closest ? closest.load : (threshold || load)));
+}
+
 function nextTrial() {
   if (history.length >= CONFIG.maxTrials) return finish();
   current = selectItem();
@@ -104,12 +121,34 @@ function submit() {
     intendedPresentationMs: CONFIG.showMs, observedPresentationMs: Math.round(recallAt-shownAt),
     responseTimeMs: Math.round(submittedAt-recallAt), timestamp: new Date().toISOString()
   });
-  // Provisional rule: 2 exact -> up one; 2 trials with <= 50% hits -> down one.
-  if (exact) { goodStreak++; poorStreak = 0; }
-  else if (proportion <= 0.5) { poorStreak++; goodStreak = 0; }
-  else { goodStreak = 0; poorStreak = 0; }
-  if (goodStreak >= 2) { load = Math.min(CONFIG.maxLoad,load+1); goodStreak = 0; }
-  if (poorStreak >= 2) { load = Math.max(CONFIG.minLoad,load-1); poorStreak = 0; }
+  // Exploratory adaptive procedure: rapid search followed by threshold sampling.
+  // No claim of calibrated item difficulty or psychometric precision.
+  if (stage === "search") {
+    if (exact) {
+      load = Math.min(CONFIG.maxLoad, current.load + 1);
+    } else {
+      searchFailures++;
+      // Partial recall is informative; one imperfect trial is not necessarily a threshold.
+      if (searchFailures >= 2 || proportion <= 0.5 || current.load === CONFIG.maxLoad) {
+        threshold = current.load;
+        stage = "measure";
+        load = Math.max(CONFIG.minLoad, current.load - (proportion <= 0.5 ? 1 : 0));
+      } else {
+        load = current.load;
+      }
+    }
+    if (current.load === CONFIG.maxLoad) {
+      stage = "measure";
+      threshold = current.load;
+    }
+  } else {
+    // Track the current threshold with a smoothed, recent-trial performance signal.
+    const recent = history.slice(-5);
+    const weighted = recent.reduce((sum,r)=>sum+(r.proportion-r.falseSelections/Math.max(1,r.load)),0)/recent.length;
+    if (weighted > 0.9) load = Math.min(CONFIG.maxLoad,current.load+1);
+    else if (weighted < 0.55) load = Math.max(CONFIG.minLoad,current.load-1);
+    else load = chooseMeasurementLoad();
+  }
   phase = "feedback";
   render();
   $("submitBtn").hidden = true; $("nextBtn").hidden = false;
@@ -120,11 +159,11 @@ function finish() {
   phase = "finished";
   $("assessment").hidden = true; $("results").hidden = false;
   const exact = history.filter(r=>r.exact).length;
-  $("summary").textContent = `${history.length} trials completed; ${exact} completely correct.`;
+  $("summary").textContent = `${history.length} trials completed; ${exact} completely correct. Highest load attempted: ${Math.max(...history.map(r=>r.load))}. Exploratory prototype only.`;
 }
 function download() {
-  const payload = {version:"0.2", task:"spatial-simultaneous", participant, yearGroup:year, sessionId,
-    configuration:CONFIG, trials:history};
+  const payload = {version:"0.3", task:"spatial-simultaneous", participant, yearGroup:year, sessionId,
+    configuration:CONFIG, adaptiveStageAtEnd:stage, provisionalThresholdLoad:threshold, trials:history};
   const blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
