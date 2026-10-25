@@ -1,178 +1,34 @@
 "use strict";
-// VSWM v0.3: provisional staircase, NOT calibrated Bayesian assessment.
-const CONFIG = { gridSize: 5, showMs: 1500, minLoad: 2, maxLoad: 12, maxTrials: 20, initialLoad: 3 };
-const $ = id => document.getElementById(id);
-let bank = [], used = new Set(), history = [], current = null;
-let load = CONFIG.initialLoad, goodStreak = 0, poorStreak = 0;
-let phase = "setup", selected = new Set(), shownAt = 0, recallAt = 0, displayTimer = null;
-let participant = "", year = "", sessionId = "";
-let stage = "search", searchFailures = 0, threshold = null;
-const grid = $("grid");
-for (let i = 0; i < CONFIG.gridSize ** 2; i++) {
-  const cell = document.createElement("button");
-  cell.type = "button";
-  cell.className = "cell";
-  cell.setAttribute("aria-label", `Location ${i + 1}`);
-  cell.addEventListener("click", () => {
-    if (phase !== "recall") return;
-    if (selected.has(i)) selected.delete(i);
-    else if (selected.size < current.load) selected.add(i);
-    render();
-  });
-  grid.appendChild(cell);
+// VSWM v0.4: two consecutive exploratory tasks; not calibrated or normed.
+const CONFIG={showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3};
+const $=id=>document.getElementById(id);
+let bank=[],used=new Set(),results={simultaneous:[],sequential:[]};
+let participant="",yearGroup="",sessionId="",task="simultaneous",gridSize=3,load=2,phase="setup",current=null,selected=[],startAt=0,recallAt=0,observedMs=0,timers=[],searching=true,failures=0,threshold=null;
+const grid=$("grid");
+const pause=ms=>new Promise(resolve=>{const t=setTimeout(resolve,ms);timers.push(t)});
+function clearTimers(){for(const t of timers)clearTimeout(t);timers=[]}
+function cells(){return [...grid.children]}
+function drawGrid(n){grid.innerHTML="";grid.style.gridTemplateColumns=`repeat(${n},1fr)`;for(let i=0;i<n*n;i++){const cell=document.createElement("button");cell.type="button";cell.className="cell";cell.setAttribute("aria-label",`Row ${Math.floor(i/n)+1}, column ${i%n+1}`);cell.addEventListener("click",()=>pick(i));grid.appendChild(cell)}}
+function render(activeTarget=null){cells().forEach((cell,i)=>{cell.classList.toggle("target",phase==="showing"&&(activeTarget===null?task==="simultaneous"&&current.targets.includes(i):activeTarget===i));const order=selected.indexOf(i);cell.classList.toggle("selected",phase==="recall"&&order>=0);cell.textContent=phase==="recall"&&task==="sequential"&&order>=0?String(order+1):"";cell.disabled=phase!=="recall"})}
+function pick(i){if(phase!=="recall")return;const index=selected.indexOf(i);if(task==="simultaneous"){if(index>=0)selected.splice(index,1);else if(selected.length<current.load)selected.push(i)}else if(index<0&&selected.length<current.load)selected.push(i);render();$("undoBtn").hidden=task!=="sequential"||!selected.length}
+function validate(items){if(!Array.isArray(items)||!items.length)throw Error("Empty item bank");const ids=new Set();for(const x of items){if(!x.id||ids.has(x.id)||![3,4,5].includes(x.gridSize)||!Number.isInteger(x.load)||x.load<2||x.load>x.gridSize*x.gridSize||!Array.isArray(x.targets)||x.targets.length!==x.load||new Set(x.targets).size!==x.load||x.targets.some(v=>!Number.isInteger(v)||v<0||v>=x.gridSize*x.gridSize))throw Error(`Invalid item ${x.id}`);ids.add(x.id)}return items}
+async function init(){try{const r=await fetch("items.json",{cache:"no-store"});if(!r.ok)throw Error(`HTTP ${r.status}`);bank=validate(await r.json());$("startBtn").disabled=false}catch(e){alert(`Unable to load items.json: ${e.message}`)}}
+function resetTask(which){task=which;used=new Set();gridSize=CONFIG.initialGrid;load=CONFIG.initialLoad;searching=true;failures=0;threshold=null;phase="ready";$("taskTitle").textContent=which==="simultaneous"?"Task 1: Simultaneous memory":"Task 2: Sequential memory";$("assessment").hidden=false;$("transition").hidden=true;drawGrid(gridSize);nextTrial()}
+function start(){participant=$("participantId").value.trim();yearGroup=$("yearGroup").value;if(!participant||!yearGroup)return alert("Enter participant code and year group.");sessionId=`vswm-${Date.now()}`;results={simultaneous:[],sequential:[]};$("setup").hidden=true;$("results").hidden=true;resetTask("simultaneous")}
+function pickItem(){let pool=bank.filter(x=>!used.has(x.id)&&x.gridSize===gridSize&&x.load===load);if(!pool.length){ // No silent change of prescribed difficulty; advance grid only when the current grid has no unused items at this load.
+  return null;
+}return pool[0]}
+function nextTrial(){const h=results[task];if(h.length>=CONFIG.trialsPerTask)return completeTask();current=pickItem();if(!current)return completeTask();used.add(current.id);selected=[];phase="showing";$("feedback").textContent="";$("submitBtn").hidden=true;$("undoBtn").hidden=true;$("nextBtn").hidden=true;$("progress").textContent=`${task==="simultaneous"?"Task 1":"Task 2"} · Trial ${h.length+1} of ${CONFIG.trialsPerTask}`;$("message").textContent=task==="simultaneous"?"Remember the blue squares.":"Remember the order of the blue squares.";if(cells().length!==gridSize*gridSize)drawGrid(gridSize);startAt=performance.now();clearTimers();if(task==="simultaneous"){render();timers.push(setTimeout(()=>beginRecall(),CONFIG.showMs))}else{runSequence(current)}}
+async function runSequence(item){for(const pos of item.targets){if(phase!=="showing")return;render(pos);await pause(CONFIG.sequenceOnMs);if(phase!=="showing")return;render(-1);await pause(CONFIG.sequenceGapMs)}if(phase==="showing")beginRecall()}
+function beginRecall(){observedMs=Math.round(performance.now()-startAt);recallAt=performance.now();phase="recall";$("message").textContent=task==="simultaneous"?"Select remembered locations, then submit.":"Tap the locations in the order they appeared.";$("submitBtn").hidden=false;render()}
+function advance(exact,proportion){if(searching){if(exact){load++;if(load>gridSize*gridSize-1){if(gridSize<5){gridSize++;load=Math.max(load-1,Math.min(3,gridSize*gridSize-1))}else load=gridSize*gridSize-1}}else{failures++;if(failures>=2||proportion<=0.5){searching=false;threshold={gridSize,load};load=Math.max(2,load-(proportion<=0.5?1:0))}}}else{if(proportion>=0.9&&exact){load++}else if(proportion<0.6){load--}load=Math.max(2,Math.min(load,gridSize*gridSize-1));if(load>=gridSize*gridSize-1&&gridSize<5){gridSize++;load=Math.min(load,gridSize*gridSize-1)}}
+ // In this prototype, advance from 3x3 to 4x4 at load 5 and 4x4 to 5x5 at load 8.
+ if(gridSize===3&&load>=5){gridSize=4;load=5}
+ if(gridSize===4&&load>=8){gridSize=5;load=8}
+ if(gridSize===5)load=Math.min(load,12)
 }
-const cells = [...grid.children];
-function render() {
-  cells.forEach((cell, i) => {
-    cell.classList.toggle("target", phase === "showing" && current.targets.includes(i));
-    cell.classList.toggle("selected", phase === "recall" && selected.has(i));
-    cell.disabled = phase !== "recall";
-  });
-}
-function validateBank(data) {
-  if (!Array.isArray(data) || !data.length) throw Error("Item bank is empty.");
-  const ids = new Set();
-  for (const item of data) {
-    if (!item.id || ids.has(item.id) || !Number.isInteger(item.load) || item.load < CONFIG.minLoad || item.load > CONFIG.maxLoad ||
-      !Array.isArray(item.targets) || item.targets.length !== item.load || new Set(item.targets).size !== item.load ||
-      item.targets.some(i => !Number.isInteger(i) || i < 0 || i >= 25)) throw Error(`Invalid item: ${item.id}`);
-    ids.add(item.id);
-  }
-  return data;
-}
-async function init() {
-  $("startBtn").disabled = true;
-  try {
-    const res = await fetch("items.json", {cache:"no-store"});
-    if (!res.ok) throw Error(`HTTP ${res.status}`);
-    bank = validateBank(await res.json());
-    $("startBtn").disabled = false;
-  } catch (err) {
-    alert(`Unable to load items.json: ${err.message}`);
-  }
-}
-function start() {
-  participant = $("participantId").value.trim();
-  year = $("yearGroup").value;
-  if (!participant || !year) return alert("Enter a participant code and year group.");
-  sessionId = `vswm-${Date.now()}`;
-  history = []; used = new Set(); load = CONFIG.initialLoad;
-  goodStreak = 0; poorStreak = 0; stage = "search"; searchFailures = 0; threshold = null;
-  $("setup").hidden = true; $("results").hidden = true; $("assessment").hidden = false;
-  nextTrial();
-}
-function selectItem() {
-  const unused = bank.filter(item => !used.has(item.id));
-  if (!unused.length) return null;
-  const exactLoad = unused.filter(item => item.load === load);
-  if (exactLoad.length) return exactLoad[0];
-  // Never silently substitute an easier item after exhausting the requested load.
-  // Choose the nearest unused load and record the actual load administered.
-  unused.sort((a,b) => Math.abs(a.load-load)-Math.abs(b.load-load) || a.id.localeCompare(b.id));
-  return unused[0];
-}
-function chooseMeasurementLoad() {
-  const recent = history.slice(-8);
-  const byLoad = new Map();
-  for (const r of recent) {
-    const arr = byLoad.get(r.load) || [];
-    arr.push(r.proportion - r.falseSelections / Math.max(1,r.load));
-    byLoad.set(r.load,arr);
-  }
-  const candidates = [...byLoad].map(([l,vals]) => ({load:l, mean:vals.reduce((a,b)=>a+b,0)/vals.length}));
-  const closest = candidates.sort((a,b)=>Math.abs(a.mean-0.7)-Math.abs(b.mean-0.7))[0];
-  return Math.max(CONFIG.minLoad,Math.min(CONFIG.maxLoad, closest ? closest.load : (threshold || load)));
-}
-
-function nextTrial() {
-  if (history.length >= CONFIG.maxTrials) return finish();
-  current = selectItem();
-  if (!current) return finish();
-  used.add(current.id);
-  selected = new Set();
-  phase = "showing";
-  $("feedback").textContent = "";
-  $("nextBtn").hidden = true; $("submitBtn").hidden = true;
-  $("progress").textContent = `Trial ${history.length + 1} of up to ${CONFIG.maxTrials}`;
-  $("message").textContent = "Remember the blue squares.";
-  shownAt = performance.now();
-  render();
-  clearTimeout(displayTimer);
-  displayTimer = setTimeout(() => {
-    if (phase !== "showing") return;
-    recallAt = performance.now();
-    phase = "recall";
-    $("message").textContent = "Select the squares you remember, then submit.";
-    $("submitBtn").hidden = false;
-    render();
-  }, CONFIG.showMs);
-}
-function submit() {
-  if (phase !== "recall") return;
-  const submittedAt = performance.now();
-  const hits = current.targets.filter(i => selected.has(i)).length;
-  const falseSelections = [...selected].filter(i => !current.targets.includes(i)).length;
-  const proportion = hits / current.load;
-  const exact = hits === current.load && falseSelections === 0;
-  history.push({
-    trial: history.length + 1, itemId: current.id, load: current.load,
-    targets: [...current.targets], responses: [...selected].sort((a,b)=>a-b),
-    hits, omissions: current.load-hits, falseSelections, proportion, exact,
-    intendedPresentationMs: CONFIG.showMs, observedPresentationMs: Math.round(recallAt-shownAt),
-    responseTimeMs: Math.round(submittedAt-recallAt), timestamp: new Date().toISOString()
-  });
-  // Exploratory adaptive procedure: rapid search followed by threshold sampling.
-  // No claim of calibrated item difficulty or psychometric precision.
-  if (stage === "search") {
-    if (exact) {
-      load = Math.min(CONFIG.maxLoad, current.load + 1);
-    } else {
-      searchFailures++;
-      // Partial recall is informative; one imperfect trial is not necessarily a threshold.
-      if (searchFailures >= 2 || proportion <= 0.5 || current.load === CONFIG.maxLoad) {
-        threshold = current.load;
-        stage = "measure";
-        load = Math.max(CONFIG.minLoad, current.load - (proportion <= 0.5 ? 1 : 0));
-      } else {
-        load = current.load;
-      }
-    }
-    if (current.load === CONFIG.maxLoad) {
-      stage = "measure";
-      threshold = current.load;
-    }
-  } else {
-    // Track the current threshold with a smoothed, recent-trial performance signal.
-    const recent = history.slice(-5);
-    const weighted = recent.reduce((sum,r)=>sum+(r.proportion-r.falseSelections/Math.max(1,r.load)),0)/recent.length;
-    if (weighted > 0.9) load = Math.min(CONFIG.maxLoad,current.load+1);
-    else if (weighted < 0.55) load = Math.max(CONFIG.minLoad,current.load-1);
-    else load = chooseMeasurementLoad();
-  }
-  phase = "feedback";
-  render();
-  $("submitBtn").hidden = true; $("nextBtn").hidden = false;
-  $("message").textContent = "Answer recorded.";
-  $("feedback").textContent = `You recalled ${hits} of ${current.load} locations.`;
-}
-function finish() {
-  phase = "finished";
-  $("assessment").hidden = true; $("results").hidden = false;
-  const exact = history.filter(r=>r.exact).length;
-  $("summary").textContent = `${history.length} trials completed; ${exact} completely correct. Highest load attempted: ${Math.max(...history.map(r=>r.load))}. Exploratory prototype only.`;
-}
-function download() {
-  const payload = {version:"0.3", task:"spatial-simultaneous", participant, yearGroup:year, sessionId,
-    configuration:CONFIG, adaptiveStageAtEnd:stage, provisionalThresholdLoad:threshold, trials:history};
-  const blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url; link.download = `${participant.replace(/[^a-zA-Z0-9_-]/g,"_")}_VSWM_${sessionId}.json`;
-  link.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-$("startBtn").addEventListener("click", start);
-$("submitBtn").addEventListener("click", submit);
-$("nextBtn").addEventListener("click", nextTrial);
-$("downloadBtn").addEventListener("click", download);
-$("restartBtn").addEventListener("click", () => { $("results").hidden = true; $("setup").hidden = false; });
-init();
+function submit(){if(phase!=="recall")return;const item=current;const targetSet=new Set(item.targets);const hits=selected.filter(v=>targetSet.has(v)).length;const falseSelections=selected.length-hits;const exactLocations=hits===item.load&&falseSelections===0;const correctPositions=selected.reduce((sum,v,i)=>sum+(item.targets[i]===v?1:0),0);const exact=task==="simultaneous"?exactLocations:correctPositions===item.load&&selected.length===item.load;const proportion=task==="simultaneous"?hits/item.load:correctPositions/item.load;const record={trial:results[task].length+1,itemId:item.id,condition:task,gridSize:item.gridSize,load:item.load,targets:[...item.targets],responses:[...selected],hits,omissions:item.load-hits,falseSelections,locationProportion:hits/item.load,correctSerialPositions:task==="sequential"?correctPositions:null,orderProportion:task==="sequential"?correctPositions/item.load:null,exact,adaptiveStage:searching?"search":"measure",intendedPresentationMs:task==="simultaneous"?CONFIG.showMs:null,observedPresentationMs:observedMs,sequenceOnMs:task==="sequential"?CONFIG.sequenceOnMs:null,sequenceGapMs:task==="sequential"?CONFIG.sequenceGapMs:null,responseTimeMs:Math.round(performance.now()-recallAt),timestamp:new Date().toISOString()};results[task].push(record);advance(exact,proportion);phase="feedback";render();$("submitBtn").hidden=true;$("undoBtn").hidden=true;$("nextBtn").hidden=false;$("message").textContent="Answer recorded.";$("feedback").textContent=task==="simultaneous"?`You recalled ${hits} of ${item.load} locations.`:`${hits} of ${item.load} locations remembered; ${correctPositions} in the correct serial position.`}
+function completeTask(){clearTimers();phase="transition";$("assessment").hidden=true;if(task==="simultaneous"){$("transition").hidden=false}else finish()}
+function finish(){$("transition").hidden=true;$("results").hidden=false;const a=results.simultaneous,b=results.sequential;$("summary").textContent=`Simultaneous: ${a.filter(x=>x.exact).length}/${a.length} perfect trials. Sequential: ${b.filter(x=>x.exact).length}/${b.length} perfect ordered sequences. Prototype scores only; not standardised.`}
+function download(){const payload={version:"0.4",task:"VSWM-two-stage",participant,yearGroup,sessionId,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},note:"Exploratory grid/load progression; not a calibrated ability measure."};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`${participant.replace(/[^a-zA-Z0-9_-]/g,"_")}_VSWM_${sessionId}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+$("startBtn").addEventListener("click",start);$("continueBtn").addEventListener("click",()=>resetTask("sequential"));$("submitBtn").addEventListener("click",submit);$("nextBtn").addEventListener("click",nextTrial);$("undoBtn").addEventListener("click",()=>{selected.pop();render();$("undoBtn").hidden=!selected.length});$("downloadBtn").addEventListener("click",download);$("restartBtn").addEventListener("click",()=>{$("results").hidden=true;$("setup").hidden=false});init();
