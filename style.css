@@ -1,0 +1,17 @@
+:root { font-family: Arial, sans-serif; color: #253858; background: #f5f7fa; }
+body { margin: 0; padding: 24px 12px; text-align: center; }
+main { max-width: 650px; margin: auto; }
+section { margin-top: 22px; }
+label { display: block; margin: 14px 0 5px; font-weight: bold; }
+input, select { font-size: 17px; padding: 9px; min-width: 180px; }
+button { font-size: 17px; padding: 11px 20px; margin: 7px; cursor: pointer; border-radius: 6px; border: 1px solid #8494a7; background: white; color: #253858; }
+button:hover:not(:disabled) { background: #e8f1ff; }
+button:disabled { cursor: default; }
+#grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 5px; width: min(90vw,350px); margin: 24px auto; }
+.cell { aspect-ratio: 1; width: 100%; padding: 0; margin: 0; background: white; border: 2px solid #9ca3af; border-radius: 5px; }
+.cell.target { background: #2563eb; }
+.cell.selected { background: #16a34a; }
+.cell:disabled { opacity: 1; }
+#message { font-size: 20px; min-height: 26px; }
+#feedback { min-height: 24px; }
+[hidden] { display: none !important; }
