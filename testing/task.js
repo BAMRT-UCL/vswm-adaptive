@@ -1,14 +1,15 @@
 "use strict";
-// VSWM v0.7: mobile-responsive research prototype; exploratory, not calibrated or normed.
-const CONFIG={version:"0.7",showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3,gridMin:{3:2,4:3,5:5},gridMax:{3:5,4:8,5:12},bridgeLoad:{4:4,5:6},receiverUrl:"https://script.google.com/macros/s/AKfycbyeYk7Y6JLqELCKRbw3aNVgiqd_uCpqlUgRJ2Mj3oNU5ImZROj62hN0EeBkolFxB1LH/exec"};
+// VSWM v0.7.2: instructions before each task; stable, uncluttered trial layout.
+// Assessment logic, timings, item bank and receiver are unchanged from v0.7.1.
+const CONFIG={version:"0.7.2",showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3,gridMin:{3:2,4:3,5:5},gridMax:{3:5,4:8,5:12},bridgeLoad:{4:4,5:6},receiverUrl:"https://script.google.com/macros/s/AKfycbyeYk7Y6JLqELCKRbw3aNVgiqd_uCpqlUgRJ2Mj3oNU5ImZROj62hN0EeBkolFxB1LH/exec"};
 const $=id=>document.getElementById(id);let bank=[],used=new Set(),results={simultaneous:[],sequential:[]};let participant="",yearGroup="",sessionId="",task="simultaneous",gridSize=3,load=2,phase="setup",current=null,selected=[],startAt=0,recallAt=0,observedMs=0,timers=[],sequentialGoodStreak=0,failures=0,submissionStarted=false,submitLocked=false;
 const grid=$("grid");const pause=ms=>new Promise(resolve=>{const t=setTimeout(resolve,ms);timers.push(t)});function clearTimers(){for(const t of timers)clearTimeout(t);timers=[]}function cells(){return [...grid.children]}
-function drawGrid(n){grid.innerHTML="";grid.style.gridTemplateColumns=`repeat(${n},1fr)`;for(let i=0;i<n*n;i++){const cell=document.createElement("button");cell.type="button";cell.className="cell";cell.setAttribute("aria-label",`Row ${Math.floor(i/n)+1}, column ${i%n+1}`);cell.addEventListener("click",()=>pick(i));grid.appendChild(cell)}}
+function drawGrid(n){grid.innerHTML="";grid.style.gridTemplateColumns=`repeat(${n},minmax(0,1fr))`;grid.style.gridTemplateRows=`repeat(${n},minmax(0,1fr))`;for(let i=0;i<n*n;i++){const cell=document.createElement("button");cell.type="button";cell.className="cell";cell.setAttribute("aria-label",`Row ${Math.floor(i/n)+1}, column ${i%n+1}`);cell.addEventListener("click",()=>pick(i));grid.appendChild(cell)}}
 function render(activeTarget=null){cells().forEach((cell,i)=>{cell.classList.toggle("target",phase==="showing"&&(activeTarget===null?task==="simultaneous"&&current.targets.includes(i):activeTarget===i));const order=selected.indexOf(i);cell.classList.toggle("selected",phase==="recall"&&order>=0);cell.textContent=phase==="recall"&&task==="sequential"&&order>=0?String(order+1):"";cell.disabled=phase!=="recall"})}
 function pick(i){if(phase!=="recall")return;const index=selected.indexOf(i);if(task==="simultaneous"){if(index>=0)selected.splice(index,1);else if(selected.length<current.load)selected.push(i)}else if(index<0&&selected.length<current.load)selected.push(i);render();$("undoBtn").hidden=task!=="sequential"||!selected.length}
 function validate(items){if(!Array.isArray(items)||!items.length)throw Error("Empty item bank");const ids=new Set();for(const x of items){if(!x.id||ids.has(x.id)||![3,4,5].includes(x.gridSize)||!Number.isInteger(x.load)||x.load<2||x.load>x.gridSize*x.gridSize||!Array.isArray(x.targets)||x.targets.length!==x.load||new Set(x.targets).size!==x.load||x.targets.some(v=>!Number.isInteger(v)||v<0||v>=x.gridSize*x.gridSize))throw Error(`Invalid item ${x.id}`);ids.add(x.id)}return items}
 async function init(){try{const r=await fetch("items.json",{cache:"no-store"});if(!r.ok)throw Error(`HTTP ${r.status}`);bank=validate(await r.json());$("startBtn").disabled=false}catch(e){alert(`Unable to load items.json: ${e.message}`)}}
-function resetTask(which){task=which;used=new Set();gridSize=3;load=CONFIG.initialLoad;sequentialGoodStreak=0;failures=0;phase="ready";$("taskTitle").textContent=which==="simultaneous"?"Simultaneous":"Sequential";$("assessment").hidden=false;$("transition").hidden=true;drawGrid(gridSize);nextTrial()}
+function resetTask(which){task=which;used=new Set();gridSize=3;load=CONFIG.initialLoad;sequentialGoodStreak=0;failures=0;phase="ready";$("taskTitle").textContent=which==="simultaneous"?"Simultaneous":"Sequential";$("assessment").hidden=false;$("transition").hidden=true;drawGrid(gridSize);updateTaskViewport();fitGridToStage();nextTrial()}
 function start(){participant=$("participantId").value.trim();yearGroup=$("yearGroup").value;if(!participant||!yearGroup)return alert("Enter participant code and year group.");if(!/^[A-Za-z0-9_-]{2,40}$/.test(participant))return alert("Use 2–40 letters, numbers, underscores or hyphens.");sessionId=`vswm-${Date.now()}`;results={simultaneous:[],sequential:[]};submissionStarted=false;$("setup").hidden=true;$("results").hidden=true;resetTask("simultaneous")}
 function pickItem(){let pool=bank.filter(x=>!used.has(x.id)&&x.gridSize===gridSize&&x.load===load);if(!pool.length)pool=bank.filter(x=>x.gridSize===gridSize&&x.load===load);if(!pool.length)return null;return pool[Math.floor(Math.random()*pool.length)]}
 function nextTrial(){const h=results[task];if(h.length>=CONFIG.trialsPerTask)return completeTask();current=pickItem();if(!current){completeTask();return}used.add(current.id);selected=[];submitLocked=false;phase="ready";$("feedback").textContent="";$("submitBtn").hidden=true;$("undoBtn").hidden=true;$("beginTrialBtn").hidden=false;$("progress").textContent=`${h.length+1}/${CONFIG.trialsPerTask}`;$("message").textContent=`${gridSize}×${gridSize} · ${load} locations`;if(cells().length!==gridSize*gridSize)drawGrid(gridSize);clearTimers();render()}
@@ -21,4 +22,39 @@ function completeTask(){clearTimers();phase="transition";$("assessment").hidden=
 async function sendResults(){if(submissionStarted)return;submissionStarted=true;const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},note:"Exploratory pilot data; not calibrated or normed."};$("uploadStatus").textContent="Submitting results…";try{await fetch(CONFIG.receiverUrl,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),keepalive:true});$("uploadStatus").textContent="Submission request sent. Verify receipt in the research spreadsheet."}catch(e){$("uploadStatus").textContent="Submission could not be confirmed. Download the JSON backup.";console.error(e)}}
 function finish(){$("transition").hidden=true;$("results").hidden=false;const a=results.simultaneous,b=results.sequential;$("summary").textContent=`Simultaneous ${a.filter(x=>x.exact).length}/${a.length} · Sequential ${b.filter(x=>x.exact).length}/${b.length}`;sendResults()}
 function download(){const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},note:"Exploratory pilot data; not calibrated or normed."};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`${participant}_VSWM_${sessionId}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+
+// Resize only from the available stage, never from instruction/button content.
+// The ResizeObserver observes the parent; setting the child size cannot resize it.
+let layoutFrame = 0;
+function fitGridToStage() {
+  const stage = $("gridStage");
+  if (!stage || $("assessment").hidden) return;
+  const rect = stage.getBoundingClientRect();
+  const side = Math.max(0, Math.floor(Math.min(rect.width - 8, rect.height - 8, 520)));
+  if (!side) return;
+  if (grid.style.width !== `${side}px`) {
+    grid.style.width = `${side}px`;
+    grid.style.height = `${side}px`;
+  }
+}
+function queueGridLayout() {
+  cancelAnimationFrame(layoutFrame);
+  layoutFrame = requestAnimationFrame(fitGridToStage);
+}
+function updateTaskViewport() {
+  // Pinch zoom must remain usable: use the visible height only at normal scale.
+  const vv = window.visualViewport;
+  const height = vv && Math.abs(vv.scale - 1) < 0.01 ? vv.height : window.innerHeight;
+  document.documentElement.style.setProperty("--task-height", `${Math.round(height)}px`);
+  queueGridLayout();
+}
+window.addEventListener("resize", updateTaskViewport);
+window.addEventListener("orientationchange", updateTaskViewport);
+if (window.visualViewport) window.visualViewport.addEventListener("resize", updateTaskViewport);
+if (typeof ResizeObserver !== "undefined") {
+  const observer = new ResizeObserver(queueGridLayout);
+  observer.observe($("gridStage"));
+}
+updateTaskViewport();
+
 $("startBtn").addEventListener("click",start);$("beginTrialBtn").addEventListener("click",beginTrial);$("continueBtn").addEventListener("click",()=>resetTask("sequential"));$("submitBtn").addEventListener("click",submit);$("undoBtn").addEventListener("click",()=>{selected.pop();render();$("undoBtn").hidden=!selected.length});$("downloadBtn").addEventListener("click",download);$("restartBtn").addEventListener("click",()=>{clearTimers();$("results").hidden=true;$("setup").hidden=false});init();
