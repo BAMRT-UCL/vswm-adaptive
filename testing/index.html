@@ -4,9 +4,49 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f5f7fa">
-  <title>Spatial Memory · v0.7.2</title>
-  <link rel="stylesheet" href="style.css?v=0.7.2">
-  <script src="task.js?v=0.7.2" defer></script>
+  <title>Spatial Memory · v0.7.3</title>
+  <style>
+/* VSWM 0.7.3 — stable top-aligned stage and independent touch activation. */
+*{box-sizing:border-box}
+:root{font-family:Arial,sans-serif;color:#253858;background:#f5f7fa}
+html,body{width:100%;min-height:100%;margin:0}
+body{text-align:center}
+main{width:100%;max-width:900px;margin:0 auto}
+section{width:100%}
+h1{font-size:clamp(22px,4vw,30px);margin:0 0 18px}h2{font-size:20px;margin:12px 0}
+label{display:block;margin:14px 0 5px;font-weight:bold}
+input,select{font:inherit;font-size:18px;padding:12px;width:min(280px,100%);border:1px solid #8494a7;border-radius:7px;background:white}
+button{font:inherit;font-size:18px;min-height:48px;padding:10px 18px;margin:5px;cursor:pointer;touch-action:manipulation;border-radius:8px;border:1px solid #8494a7;background:white;color:#253858}
+button:disabled{opacity:.5;cursor:default}button:not(.cell):hover:not(:disabled){background:#e8f1ff}
+button:focus-visible{outline:3px solid #f59e0b;outline-offset:1px}
+#setup,#transition,#results{max-width:600px;padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));margin:0 auto}
+.task-instructions{max-width:460px;margin:22px auto 12px;line-height:1.45}.task-instructions p{margin:10px 0}.version-label{font-size:12px;color:#52627a;margin:10px 0}
+#setupError{color:#9b1c1c}
+body.task-active{position:fixed;inset:0;overflow:hidden;overscroll-behavior:none}
+body.task-active main{min-height:0}
+#assessment{position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;height:100vh;height:100svh;--board-side:280px;--side-panel:160px;padding:max(8px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));display:grid;grid-template-areas:"header" "stage" "controls";grid-template-columns:minmax(0,1fr);grid-template-rows:28px var(--board-side) 56px;gap:8px;align-content:start;overflow:hidden}
+.task-header{grid-area:header;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:0 4px;font-size:15px;font-weight:600;white-space:nowrap}
+.task-header span:last-child{color:#52627a;font-weight:normal;font-variant-numeric:tabular-nums}
+.grid-stage{grid-area:stage;position:relative;min-width:0;height:var(--board-side);display:grid;place-items:center}
+#grid{display:grid;width:var(--board-side);height:var(--board-side);gap:4px;margin:0;touch-action:pinch-zoom;user-select:none;-webkit-user-select:none}
+#grid .cell{min-width:0;min-height:0;width:100%;height:100%;padding:0;margin:0;background:white;border:2px solid #9ca3af;border-radius:6px;font-size:20px;line-height:1;touch-action:pinch-zoom;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;appearance:none;-webkit-appearance:none}
+#grid .cell[aria-disabled="true"]{cursor:default}
+#grid .cell.target{background:#2563eb}
+#grid .cell.selected{background:#16a34a;color:white;font-weight:bold}
+.actions{grid-area:controls;display:grid;grid-template-columns:minmax(60px,1fr) minmax(120px,1.5fr) minmax(60px,1fr);grid-template-rows:48px;align-content:center;gap:8px;width:min(100%,480px);height:56px;margin:0 auto}
+.actions button{margin:0;width:100%;height:48px;min-height:48px;padding:8px 10px;white-space:nowrap}
+#beginTrialBtn,#submitBtn{grid-column:2;grid-row:1}#undoBtn{grid-column:1;grid-row:1}
+#assessment.landscape{grid-template-areas:"stage header" "stage controls";grid-template-columns:minmax(0,1fr) var(--side-panel);grid-template-rows:28px 104px;column-gap:16px;row-gap:16px}
+.landscape .task-header{font-size:14px;padding:0}
+.landscape .actions{width:100%;height:104px;grid-template-columns:minmax(0,1fr);grid-template-rows:48px 48px;gap:8px;align-content:start}
+.landscape #beginTrialBtn,.landscape #submitBtn{grid-column:1;grid-row:1}.landscape #undoBtn{grid-column:1;grid-row:2}
+#displayNotice{position:fixed;inset:0;z-index:10;display:grid;place-items:center;background:#f5f7fa;padding:20px}#displayNotice>div{max-width:400px;line-height:1.5}
+#viewportReference{position:fixed;width:100vw;height:100vh;width:100svw;height:100svh;visibility:hidden;pointer-events:none;top:0;left:0;z-index:-10}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
+[hidden]{display:none!important}
+
+</style>
+  
 </head>
 <body>
 <main>
@@ -26,7 +66,8 @@
       <p>Press <strong>Start trial</strong> when you are ready for each pattern.</p>
     </div>
     <button id="startBtn" disabled>Start Task 1</button>
-    <p class="version-label">v0.7.2</p>
+    <p id="setupError" role="alert"></p>
+    <p class="version-label">v0.7.3</p>
   </section>
 
   <section id="transition" hidden>
@@ -64,8 +105,6312 @@
     <p id="uploadStatus" role="status"></p>
     <button id="downloadBtn">Download data backup</button>
     <button id="restartBtn">Finish</button>
-    <p class="version-label">v0.7.2</p>
+    <p class="version-label">v0.7.3</p>
   </section>
 </main>
+<div id="viewportReference" aria-hidden="true"></div>
+<div id="displayNotice" role="dialog" aria-modal="true" aria-labelledby="displayNoticeTitle" hidden>
+  <div><h2 id="displayNoticeTitle">Screen size changed</h2>
+  <p>This trial will not count. Press Continue for a fresh pattern on the resized grid.</p>
+  <button id="resumeDisplayBtn">Continue</button></div>
+</div>
+<script id="itemBank" type="application/json">
+[
+  {
+    "id": "G3L2V07I01",
+    "gridSize": 3,
+    "load": 2,
+    "targets": [
+      2,
+      6
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 0,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        0,
+        1,
+        1,
+        0
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L2V07I02",
+    "gridSize": 3,
+    "load": 2,
+    "targets": [
+      0,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 0,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        1,
+        0,
+        1,
+        0
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L2V07I03",
+    "gridSize": 3,
+    "load": 2,
+    "targets": [
+      1,
+      3
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        2,
+        0,
+        0,
+        0
+      ],
+      "boundingBoxArea": 4,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L2V07I04",
+    "gridSize": 3,
+    "load": 2,
+    "targets": [
+      3,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        1,
+        0,
+        1,
+        0
+      ],
+      "boundingBoxArea": 4,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L2V07I05",
+    "gridSize": 3,
+    "load": 2,
+    "targets": [
+      2,
+      4
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        1,
+        1,
+        0,
+        0
+      ],
+      "boundingBoxArea": 4,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L2V07I06",
+    "gridSize": 3,
+    "load": 2,
+    "targets": [
+      2,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 0,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        0,
+        1,
+        1,
+        0
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L2V07I07",
+    "gridSize": 3,
+    "load": 2,
+    "targets": [
+      3,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 0,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        1,
+        0,
+        0,
+        1
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L2V07I08",
+    "gridSize": 3,
+    "load": 2,
+    "targets": [
+      1,
+      5
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        1,
+        1,
+        0,
+        0
+      ],
+      "boundingBoxArea": 4,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L2V07I09",
+    "gridSize": 3,
+    "load": 2,
+    "targets": [
+      4,
+      6
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        1,
+        0,
+        1,
+        0
+      ],
+      "boundingBoxArea": 4,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L2V07I10",
+    "gridSize": 3,
+    "load": 2,
+    "targets": [
+      0,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 0,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        1,
+        0,
+        0,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L2V07I11",
+    "gridSize": 3,
+    "load": 2,
+    "targets": [
+      1,
+      6
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 0,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        1,
+        0,
+        1,
+        0
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L2V07I12",
+    "gridSize": 3,
+    "load": 2,
+    "targets": [
+      0,
+      4
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        2,
+        0,
+        0,
+        0
+      ],
+      "boundingBoxArea": 4,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L3V07I01",
+    "gridSize": 3,
+    "load": 3,
+    "targets": [
+      2,
+      6,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        0,
+        1,
+        2,
+        0
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L3V07I02",
+    "gridSize": 3,
+    "load": 3,
+    "targets": [
+      3,
+      6,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        0,
+        1,
+        1
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L3V07I03",
+    "gridSize": 3,
+    "load": 3,
+    "targets": [
+      4,
+      7,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        0,
+        1,
+        1
+      ],
+      "boundingBoxArea": 4,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L3V07I04",
+    "gridSize": 3,
+    "load": 3,
+    "targets": [
+      3,
+      4,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        2,
+        0,
+        0,
+        1
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L3V07I05",
+    "gridSize": 3,
+    "load": 3,
+    "targets": [
+      0,
+      2,
+      5
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        2,
+        0,
+        0
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L3V07I06",
+    "gridSize": 3,
+    "load": 3,
+    "targets": [
+      1,
+      4,
+      5
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        0,
+        0
+      ],
+      "boundingBoxArea": 4,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L3V07I07",
+    "gridSize": 3,
+    "load": 3,
+    "targets": [
+      5,
+      7,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        0,
+        1,
+        1,
+        1
+      ],
+      "boundingBoxArea": 4,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L3V07I08",
+    "gridSize": 3,
+    "load": 3,
+    "targets": [
+      1,
+      6,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        0,
+        2,
+        0
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L3V07I09",
+    "gridSize": 3,
+    "load": 3,
+    "targets": [
+      5,
+      6,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        0,
+        1,
+        2,
+        0
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L3V07I10",
+    "gridSize": 3,
+    "load": 3,
+    "targets": [
+      3,
+      6,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        0,
+        2,
+        0
+      ],
+      "boundingBoxArea": 4,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L3V07I11",
+    "gridSize": 3,
+    "load": 3,
+    "targets": [
+      0,
+      3,
+      4
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        0,
+        0,
+        0
+      ],
+      "boundingBoxArea": 4,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L3V07I12",
+    "gridSize": 3,
+    "load": 3,
+    "targets": [
+      3,
+      5,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        1,
+        0,
+        1
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L4V07I01",
+    "gridSize": 3,
+    "load": 4,
+    "targets": [
+      3,
+      4,
+      7,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        0,
+        1,
+        1
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L4V07I02",
+    "gridSize": 3,
+    "load": 4,
+    "targets": [
+      0,
+      3,
+      7,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        0,
+        1,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.25
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L4V07I03",
+    "gridSize": 3,
+    "load": 4,
+    "targets": [
+      2,
+      4,
+      5,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        2,
+        1,
+        0
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L4V07I04",
+    "gridSize": 3,
+    "load": 4,
+    "targets": [
+      0,
+      3,
+      5,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        0,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L4V07I05",
+    "gridSize": 3,
+    "load": 4,
+    "targets": [
+      0,
+      1,
+      5,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        0,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.25
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L4V07I06",
+    "gridSize": 3,
+    "load": 4,
+    "targets": [
+      2,
+      4,
+      6,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        1,
+        2,
+        0
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L4V07I07",
+    "gridSize": 3,
+    "load": 4,
+    "targets": [
+      1,
+      4,
+      5,
+      6
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        1,
+        0
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L4V07I08",
+    "gridSize": 3,
+    "load": 4,
+    "targets": [
+      0,
+      3,
+      4,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        0,
+        1,
+        0
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L4V07I09",
+    "gridSize": 3,
+    "load": 4,
+    "targets": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        1,
+        2,
+        0
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L4V07I10",
+    "gridSize": 3,
+    "load": 4,
+    "targets": [
+      0,
+      1,
+      4,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        0,
+        0,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L4V07I11",
+    "gridSize": 3,
+    "load": 4,
+    "targets": [
+      2,
+      3,
+      4,
+      6
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        1,
+        0
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L4V07I12",
+    "gridSize": 3,
+    "load": 4,
+    "targets": [
+      2,
+      3,
+      4,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        1,
+        0
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L5V07I01",
+    "gridSize": 3,
+    "load": 5,
+    "targets": [
+      2,
+      3,
+      5,
+      6,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        2,
+        2,
+        0
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L5V07I02",
+    "gridSize": 3,
+    "load": 5,
+    "targets": [
+      0,
+      1,
+      3,
+      7,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        0,
+        1,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L5V07I03",
+    "gridSize": 3,
+    "load": 5,
+    "targets": [
+      0,
+      1,
+      5,
+      6,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        1,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L5V07I04",
+    "gridSize": 3,
+    "load": 5,
+    "targets": [
+      1,
+      2,
+      3,
+      6,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        1,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L5V07I05",
+    "gridSize": 3,
+    "load": 5,
+    "targets": [
+      1,
+      2,
+      3,
+      4,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        1,
+        0,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.8
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L5V07I06",
+    "gridSize": 3,
+    "load": 5,
+    "targets": [
+      0,
+      2,
+      3,
+      4,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        1,
+        1,
+        0
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.8
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L5V07I07",
+    "gridSize": 3,
+    "load": 5,
+    "targets": [
+      0,
+      3,
+      4,
+      6,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        0,
+        1,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.8
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L5V07I08",
+    "gridSize": 3,
+    "load": 5,
+    "targets": [
+      0,
+      2,
+      5,
+      7,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        2,
+        1,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L5V07I09",
+    "gridSize": 3,
+    "load": 5,
+    "targets": [
+      0,
+      1,
+      4,
+      5,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        1,
+        1,
+        0
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.8
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L5V07I10",
+    "gridSize": 3,
+    "load": 5,
+    "targets": [
+      0,
+      3,
+      5,
+      6,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        1,
+        2,
+        0
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.8
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L5V07I11",
+    "gridSize": 3,
+    "load": 5,
+    "targets": [
+      0,
+      2,
+      4,
+      5,
+      7
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        2,
+        1,
+        0
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.8
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G3L5V07I12",
+    "gridSize": 3,
+    "load": 5,
+    "targets": [
+      0,
+      1,
+      2,
+      3,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        1,
+        0,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L3V07I01",
+    "gridSize": 4,
+    "load": 3,
+    "targets": [
+      1,
+      3,
+      11
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 0,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        1,
+        0,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L3V07I02",
+    "gridSize": 4,
+    "load": 3,
+    "targets": [
+      6,
+      13,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        0,
+        1,
+        1,
+        1
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L3V07I03",
+    "gridSize": 4,
+    "load": 3,
+    "targets": [
+      0,
+      1,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        0,
+        1,
+        0
+      ],
+      "boundingBoxArea": 8,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L3V07I04",
+    "gridSize": 4,
+    "load": 3,
+    "targets": [
+      0,
+      5,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        2,
+        0,
+        0,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L3V07I05",
+    "gridSize": 4,
+    "load": 3,
+    "targets": [
+      6,
+      9,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        0,
+        1,
+        1,
+        1
+      ],
+      "boundingBoxArea": 6,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L3V07I06",
+    "gridSize": 4,
+    "load": 3,
+    "targets": [
+      3,
+      4,
+      5
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        2,
+        1,
+        0,
+        0
+      ],
+      "boundingBoxArea": 8,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L3V07I07",
+    "gridSize": 4,
+    "load": 3,
+    "targets": [
+      2,
+      5,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        1,
+        0,
+        1
+      ],
+      "boundingBoxArea": 8,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L3V07I08",
+    "gridSize": 4,
+    "load": 3,
+    "targets": [
+      0,
+      10,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        0,
+        0,
+        2
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L3V07I09",
+    "gridSize": 4,
+    "load": 3,
+    "targets": [
+      3,
+      9,
+      10
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        0,
+        1,
+        1,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L3V07I10",
+    "gridSize": 4,
+    "load": 3,
+    "targets": [
+      5,
+      6,
+      12
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        1,
+        1,
+        1,
+        0
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L3V07I11",
+    "gridSize": 4,
+    "load": 3,
+    "targets": [
+      1,
+      3,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 0,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        1,
+        1,
+        1,
+        0
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L3V07I12",
+    "gridSize": 4,
+    "load": 3,
+    "targets": [
+      0,
+      12,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 0,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        0,
+        1,
+        1
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L4V07I01",
+    "gridSize": 4,
+    "load": 4,
+    "targets": [
+      1,
+      9,
+      14,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        0,
+        1,
+        2
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L4V07I02",
+    "gridSize": 4,
+    "load": 4,
+    "targets": [
+      2,
+      5,
+      8,
+      11
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L4V07I03",
+    "gridSize": 4,
+    "load": 4,
+    "targets": [
+      1,
+      7,
+      8,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        1,
+        2,
+        0
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L4V07I04",
+    "gridSize": 4,
+    "load": 4,
+    "targets": [
+      0,
+      3,
+      7,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        2,
+        1,
+        0
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L4V07I05",
+    "gridSize": 4,
+    "load": 4,
+    "targets": [
+      0,
+      3,
+      4,
+      10
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        0,
+        1
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L4V07I06",
+    "gridSize": 4,
+    "load": 4,
+    "targets": [
+      0,
+      7,
+      11,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L4V07I07",
+    "gridSize": 4,
+    "load": 4,
+    "targets": [
+      0,
+      5,
+      8,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        0,
+        1,
+        1
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L4V07I08",
+    "gridSize": 4,
+    "load": 4,
+    "targets": [
+      10,
+      11,
+      12,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        0,
+        0,
+        1,
+        3
+      ],
+      "boundingBoxArea": 8,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L4V07I09",
+    "gridSize": 4,
+    "load": 4,
+    "targets": [
+      1,
+      2,
+      3,
+      8
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        1,
+        2,
+        1,
+        0
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L4V07I10",
+    "gridSize": 4,
+    "load": 4,
+    "targets": [
+      2,
+      6,
+      9,
+      12
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 1,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        0,
+        2,
+        2,
+        0
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L4V07I11",
+    "gridSize": 4,
+    "load": 4,
+    "targets": [
+      0,
+      1,
+      3,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        1,
+        0
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L4V07I12",
+    "gridSize": 4,
+    "load": 4,
+    "targets": [
+      2,
+      5,
+      6,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        2,
+        1,
+        0
+      ],
+      "boundingBoxArea": 8,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L5V07I01",
+    "gridSize": 4,
+    "load": 5,
+    "targets": [
+      2,
+      4,
+      6,
+      11,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        2,
+        1,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L5V07I02",
+    "gridSize": 4,
+    "load": 5,
+    "targets": [
+      1,
+      5,
+      6,
+      7,
+      10
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        2,
+        0,
+        1
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L5V07I03",
+    "gridSize": 4,
+    "load": 5,
+    "targets": [
+      0,
+      3,
+      4,
+      6,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        2,
+        1,
+        0
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L5V07I04",
+    "gridSize": 4,
+    "load": 5,
+    "targets": [
+      4,
+      11,
+      13,
+      14,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        0,
+        1,
+        3
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L5V07I05",
+    "gridSize": 4,
+    "load": 5,
+    "targets": [
+      2,
+      5,
+      11,
+      14,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        1,
+        0,
+        3
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L5V07I06",
+    "gridSize": 4,
+    "load": 5,
+    "targets": [
+      0,
+      7,
+      9,
+      10,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        1,
+        1,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L5V07I07",
+    "gridSize": 4,
+    "load": 5,
+    "targets": [
+      3,
+      8,
+      10,
+      12,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        0,
+        1,
+        3,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L5V07I08",
+    "gridSize": 4,
+    "load": 5,
+    "targets": [
+      4,
+      10,
+      12,
+      14,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        0,
+        1,
+        3
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L5V07I09",
+    "gridSize": 4,
+    "load": 5,
+    "targets": [
+      1,
+      2,
+      6,
+      9,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        2,
+        2,
+        0
+      ],
+      "boundingBoxArea": 8,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L5V07I10",
+    "gridSize": 4,
+    "load": 5,
+    "targets": [
+      1,
+      10,
+      11,
+      12,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        0,
+        1,
+        3
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.0
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L5V07I11",
+    "gridSize": 4,
+    "load": 5,
+    "targets": [
+      6,
+      7,
+      13,
+      14,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        0,
+        2,
+        1,
+        2
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L5V07I12",
+    "gridSize": 4,
+    "load": 5,
+    "targets": [
+      1,
+      2,
+      3,
+      10,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        2,
+        0,
+        2
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L6V07I01",
+    "gridSize": 4,
+    "load": 6,
+    "targets": [
+      1,
+      2,
+      3,
+      4,
+      7,
+      11
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        3,
+        0,
+        1
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L6V07I02",
+    "gridSize": 4,
+    "load": 6,
+    "targets": [
+      0,
+      1,
+      5,
+      6,
+      8,
+      9
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 9,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        1,
+        2,
+        0
+      ],
+      "boundingBoxArea": 9,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L6V07I03",
+    "gridSize": 4,
+    "load": 6,
+    "targets": [
+      1,
+      4,
+      7,
+      10,
+      11,
+      12
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        1,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L6V07I04",
+    "gridSize": 4,
+    "load": 6,
+    "targets": [
+      2,
+      4,
+      5,
+      8,
+      10,
+      12
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        1,
+        2,
+        1
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L6V07I05",
+    "gridSize": 4,
+    "load": 6,
+    "targets": [
+      1,
+      3,
+      8,
+      9,
+      10,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        1,
+        2,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L6V07I06",
+    "gridSize": 4,
+    "load": 6,
+    "targets": [
+      2,
+      3,
+      7,
+      8,
+      13,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        0,
+        3,
+        2,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L6V07I07",
+    "gridSize": 4,
+    "load": 6,
+    "targets": [
+      3,
+      5,
+      8,
+      12,
+      13,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        1,
+        3,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L6V07I08",
+    "gridSize": 4,
+    "load": 6,
+    "targets": [
+      0,
+      1,
+      3,
+      6,
+      9,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        2,
+        2,
+        0
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L6V07I09",
+    "gridSize": 4,
+    "load": 6,
+    "targets": [
+      0,
+      3,
+      10,
+      12,
+      13,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        1,
+        2,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L6V07I10",
+    "gridSize": 4,
+    "load": 6,
+    "targets": [
+      1,
+      2,
+      4,
+      6,
+      9,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        2,
+        2,
+        0
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L6V07I11",
+    "gridSize": 4,
+    "load": 6,
+    "targets": [
+      1,
+      2,
+      6,
+      9,
+      10,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        2,
+        1,
+        2
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L6V07I12",
+    "gridSize": 4,
+    "load": 6,
+    "targets": [
+      1,
+      4,
+      6,
+      7,
+      12,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        2,
+        2,
+        0
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L7V07I01",
+    "gridSize": 4,
+    "load": 7,
+    "targets": [
+      1,
+      4,
+      5,
+      7,
+      10,
+      12,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        1,
+        1,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L7V07I02",
+    "gridSize": 4,
+    "load": 7,
+    "targets": [
+      0,
+      2,
+      3,
+      5,
+      9,
+      11,
+      12
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        2,
+        2,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L7V07I03",
+    "gridSize": 4,
+    "load": 7,
+    "targets": [
+      4,
+      6,
+      7,
+      10,
+      11,
+      13,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 9,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        2,
+        1,
+        3
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L7V07I04",
+    "gridSize": 4,
+    "load": 7,
+    "targets": [
+      0,
+      3,
+      4,
+      9,
+      10,
+      11,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        2,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L7V07I05",
+    "gridSize": 4,
+    "load": 7,
+    "targets": [
+      1,
+      2,
+      7,
+      8,
+      11,
+      13,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        2,
+        2,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L7V07I06",
+    "gridSize": 4,
+    "load": 7,
+    "targets": [
+      2,
+      3,
+      6,
+      9,
+      11,
+      14,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 9,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        0,
+        3,
+        1,
+        3
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L7V07I07",
+    "gridSize": 4,
+    "load": 7,
+    "targets": [
+      2,
+      3,
+      4,
+      7,
+      9,
+      11,
+      13
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        3,
+        2,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.286
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L7V07I08",
+    "gridSize": 4,
+    "load": 7,
+    "targets": [
+      1,
+      2,
+      4,
+      5,
+      8,
+      11,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 8,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        1,
+        1,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L7V07I09",
+    "gridSize": 4,
+    "load": 7,
+    "targets": [
+      1,
+      4,
+      7,
+      9,
+      11,
+      13,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        1,
+        2,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L7V07I10",
+    "gridSize": 4,
+    "load": 7,
+    "targets": [
+      0,
+      3,
+      5,
+      6,
+      9,
+      11,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        2,
+        1,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L7V07I11",
+    "gridSize": 4,
+    "load": 7,
+    "targets": [
+      1,
+      3,
+      4,
+      9,
+      11,
+      13,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        1,
+        2,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L7V07I12",
+    "gridSize": 4,
+    "load": 7,
+    "targets": [
+      0,
+      1,
+      2,
+      6,
+      7,
+      11,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 9,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        3,
+        0,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L8V07I01",
+    "gridSize": 4,
+    "load": 8,
+    "targets": [
+      2,
+      3,
+      4,
+      8,
+      10,
+      11,
+      13,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 8,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L8V07I02",
+    "gridSize": 4,
+    "load": 8,
+    "targets": [
+      1,
+      2,
+      3,
+      4,
+      10,
+      12,
+      14,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        2,
+        1,
+        3
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L8V07I03",
+    "gridSize": 4,
+    "load": 8,
+    "targets": [
+      1,
+      6,
+      7,
+      8,
+      9,
+      11,
+      13,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 9,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        2,
+        3,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L8V07I04",
+    "gridSize": 4,
+    "load": 8,
+    "targets": [
+      0,
+      3,
+      6,
+      7,
+      8,
+      13,
+      14,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        3,
+        2,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L8V07I05",
+    "gridSize": 4,
+    "load": 8,
+    "targets": [
+      0,
+      3,
+      5,
+      7,
+      9,
+      10,
+      12,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 9,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L8V07I06",
+    "gridSize": 4,
+    "load": 8,
+    "targets": [
+      0,
+      2,
+      3,
+      5,
+      7,
+      8,
+      12,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        3,
+        2,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L8V07I07",
+    "gridSize": 4,
+    "load": 8,
+    "targets": [
+      1,
+      3,
+      5,
+      8,
+      10,
+      11,
+      13,
+      14
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 9,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        1,
+        2,
+        3
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L8V07I08",
+    "gridSize": 4,
+    "load": 8,
+    "targets": [
+      0,
+      2,
+      5,
+      6,
+      7,
+      9,
+      12,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 9,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        3,
+        2,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L8V07I09",
+    "gridSize": 4,
+    "load": 8,
+    "targets": [
+      2,
+      4,
+      7,
+      9,
+      11,
+      12,
+      14,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 8,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L8V07I10",
+    "gridSize": 4,
+    "load": 8,
+    "targets": [
+      2,
+      5,
+      7,
+      8,
+      10,
+      11,
+      12,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 10,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L8V07I11",
+    "gridSize": 4,
+    "load": 8,
+    "targets": [
+      1,
+      2,
+      4,
+      6,
+      8,
+      9,
+      14,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 10,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G4L8V07I12",
+    "gridSize": 4,
+    "load": 8,
+    "targets": [
+      1,
+      3,
+      4,
+      5,
+      7,
+      9,
+      10,
+      12
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 10,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        2,
+        2,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L5V07I01",
+    "gridSize": 5,
+    "load": 5,
+    "targets": [
+      0,
+      7,
+      15,
+      18,
+      19
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        0,
+        1,
+        2
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L5V07I02",
+    "gridSize": 5,
+    "load": 5,
+    "targets": [
+      2,
+      6,
+      10,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 1,
+      "quadrantOccupancy": [
+        3,
+        0,
+        0,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.2
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L5V07I03",
+    "gridSize": 5,
+    "load": 5,
+    "targets": [
+      1,
+      5,
+      8,
+      14,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        2,
+        1,
+        0
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L5V07I04",
+    "gridSize": 5,
+    "load": 5,
+    "targets": [
+      1,
+      5,
+      11,
+      15,
+      17
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        0,
+        2,
+        0
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L5V07I05",
+    "gridSize": 5,
+    "load": 5,
+    "targets": [
+      3,
+      9,
+      10,
+      13,
+      16
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        3,
+        1,
+        0
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L5V07I06",
+    "gridSize": 5,
+    "load": 5,
+    "targets": [
+      8,
+      13,
+      16,
+      17,
+      21
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        0,
+        2,
+        3,
+        0
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.2
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L5V07I07",
+    "gridSize": 5,
+    "load": 5,
+    "targets": [
+      0,
+      1,
+      12,
+      17,
+      18
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        0,
+        1,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L5V07I08",
+    "gridSize": 5,
+    "load": 5,
+    "targets": [
+      6,
+      9,
+      12,
+      19,
+      21
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 1,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        1,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L5V07I09",
+    "gridSize": 5,
+    "load": 5,
+    "targets": [
+      2,
+      12,
+      13,
+      14,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        2,
+        0,
+        1
+      ],
+      "boundingBoxArea": 15,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L5V07I10",
+    "gridSize": 5,
+    "load": 5,
+    "targets": [
+      8,
+      12,
+      14,
+      19,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        2,
+        0,
+        2
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L5V07I11",
+    "gridSize": 5,
+    "load": 5,
+    "targets": [
+      4,
+      14,
+      17,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        0,
+        2,
+        1,
+        2
+      ],
+      "boundingBoxArea": 15,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L5V07I12",
+    "gridSize": 5,
+    "load": 5,
+    "targets": [
+      1,
+      3,
+      11,
+      20,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 0,
+      "nearNeighbourPairs": 0,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        1,
+        1,
+        1
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L6V07I01",
+    "gridSize": 5,
+    "load": 6,
+    "targets": [
+      2,
+      3,
+      7,
+      9,
+      16,
+      21
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        2,
+        2,
+        0
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L6V07I02",
+    "gridSize": 5,
+    "load": 6,
+    "targets": [
+      3,
+      5,
+      7,
+      9,
+      14,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        3,
+        1,
+        0
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L6V07I03",
+    "gridSize": 5,
+    "load": 6,
+    "targets": [
+      2,
+      3,
+      5,
+      14,
+      16,
+      22
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 2,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        2,
+        2,
+        0
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L6V07I04",
+    "gridSize": 5,
+    "load": 6,
+    "targets": [
+      4,
+      8,
+      14,
+      19,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        0,
+        3,
+        0,
+        3
+      ],
+      "boundingBoxArea": 10,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L6V07I05",
+    "gridSize": 5,
+    "load": 6,
+    "targets": [
+      1,
+      9,
+      14,
+      15,
+      17,
+      21
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        2,
+        3,
+        0
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L6V07I06",
+    "gridSize": 5,
+    "load": 6,
+    "targets": [
+      6,
+      7,
+      11,
+      12,
+      15,
+      21
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 8,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        0,
+        2,
+        0
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L6V07I07",
+    "gridSize": 5,
+    "load": 6,
+    "targets": [
+      4,
+      11,
+      13,
+      15,
+      16,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        2,
+        2,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L6V07I08",
+    "gridSize": 5,
+    "load": 6,
+    "targets": [
+      2,
+      4,
+      7,
+      11,
+      18,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 1,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        1,
+        0,
+        2
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L6V07I09",
+    "gridSize": 5,
+    "load": 6,
+    "targets": [
+      6,
+      7,
+      9,
+      11,
+      15,
+      22
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        1,
+        2,
+        0
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L6V07I10",
+    "gridSize": 5,
+    "load": 6,
+    "targets": [
+      2,
+      3,
+      8,
+      16,
+      19,
+      22
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        2,
+        2,
+        1
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L6V07I11",
+    "gridSize": 5,
+    "load": 6,
+    "targets": [
+      3,
+      5,
+      8,
+      10,
+      14,
+      15
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        3,
+        1,
+        0
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L6V07I12",
+    "gridSize": 5,
+    "load": 6,
+    "targets": [
+      1,
+      3,
+      12,
+      13,
+      18,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        2,
+        2,
+        0,
+        2
+      ],
+      "boundingBoxArea": 15,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L7V07I01",
+    "gridSize": 5,
+    "load": 7,
+    "targets": [
+      0,
+      1,
+      13,
+      14,
+      16,
+      17,
+      22
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        2,
+        3,
+        0
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.286
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L7V07I02",
+    "gridSize": 5,
+    "load": 7,
+    "targets": [
+      6,
+      9,
+      10,
+      11,
+      17,
+      22,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        3,
+        1,
+        2,
+        1
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.286
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L7V07I03",
+    "gridSize": 5,
+    "load": 7,
+    "targets": [
+      1,
+      4,
+      6,
+      8,
+      18,
+      19,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        2,
+        0,
+        3
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L7V07I04",
+    "gridSize": 5,
+    "load": 7,
+    "targets": [
+      1,
+      12,
+      16,
+      18,
+      19,
+      21,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        0,
+        2,
+        3
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.429
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L7V07I05",
+    "gridSize": 5,
+    "load": 7,
+    "targets": [
+      3,
+      6,
+      11,
+      19,
+      20,
+      21,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 3,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        1,
+        2,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.286
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L7V07I06",
+    "gridSize": 5,
+    "load": 7,
+    "targets": [
+      3,
+      5,
+      6,
+      8,
+      9,
+      16,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 4,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        3,
+        1,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L7V07I07",
+    "gridSize": 5,
+    "load": 7,
+    "targets": [
+      0,
+      2,
+      3,
+      5,
+      6,
+      16,
+      20
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        1,
+        2,
+        0
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L7V07I08",
+    "gridSize": 5,
+    "load": 7,
+    "targets": [
+      3,
+      6,
+      8,
+      9,
+      14,
+      15,
+      19
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        4,
+        1,
+        1
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L7V07I09",
+    "gridSize": 5,
+    "load": 7,
+    "targets": [
+      5,
+      12,
+      17,
+      18,
+      19,
+      22,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 8,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        0,
+        2,
+        3
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.429
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L7V07I10",
+    "gridSize": 5,
+    "load": 7,
+    "targets": [
+      4,
+      7,
+      8,
+      9,
+      10,
+      19,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        2,
+        3,
+        0,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.714
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L7V07I11",
+    "gridSize": 5,
+    "load": 7,
+    "targets": [
+      6,
+      8,
+      13,
+      16,
+      17,
+      21,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        2,
+        3,
+        1
+      ],
+      "boundingBoxArea": 12,
+      "maxQuarterTurnSymmetry": 0.714
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L7V07I12",
+    "gridSize": 5,
+    "load": 7,
+    "targets": [
+      1,
+      8,
+      9,
+      11,
+      13,
+      15,
+      19
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        3,
+        1,
+        1
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.571
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L8V07I01",
+    "gridSize": 5,
+    "load": 8,
+    "targets": [
+      2,
+      3,
+      5,
+      7,
+      9,
+      12,
+      14,
+      19
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        3,
+        0,
+        1
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.625
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L8V07I02",
+    "gridSize": 5,
+    "load": 8,
+    "targets": [
+      0,
+      1,
+      5,
+      7,
+      11,
+      13,
+      15,
+      19
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 9,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        5,
+        1,
+        1,
+        1
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.625
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L8V07I03",
+    "gridSize": 5,
+    "load": 8,
+    "targets": [
+      1,
+      2,
+      5,
+      6,
+      8,
+      15,
+      20,
+      22
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        1,
+        3,
+        0
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L8V07I04",
+    "gridSize": 5,
+    "load": 8,
+    "targets": [
+      1,
+      3,
+      8,
+      12,
+      15,
+      20,
+      21,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        2,
+        3,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.625
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L8V07I05",
+    "gridSize": 5,
+    "load": 8,
+    "targets": [
+      1,
+      2,
+      7,
+      11,
+      13,
+      14,
+      17,
+      18
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 11,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        2,
+        1,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.625
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L8V07I06",
+    "gridSize": 5,
+    "load": 8,
+    "targets": [
+      3,
+      7,
+      14,
+      15,
+      16,
+      17,
+      19,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        2,
+        3,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.625
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L8V07I07",
+    "gridSize": 5,
+    "load": 8,
+    "targets": [
+      1,
+      2,
+      7,
+      10,
+      11,
+      12,
+      21,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        6,
+        0,
+        1,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.625
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L8V07I08",
+    "gridSize": 5,
+    "load": 8,
+    "targets": [
+      6,
+      7,
+      8,
+      11,
+      12,
+      22,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 7,
+      "nearNeighbourPairs": 10,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        1,
+        1,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.625
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L8V07I09",
+    "gridSize": 5,
+    "load": 8,
+    "targets": [
+      4,
+      8,
+      10,
+      13,
+      16,
+      19,
+      21,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 2,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        1,
+        3,
+        2,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L8V07I10",
+    "gridSize": 5,
+    "load": 8,
+    "targets": [
+      2,
+      4,
+      12,
+      13,
+      14,
+      16,
+      18,
+      20
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        2,
+        3,
+        2,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L8V07I11",
+    "gridSize": 5,
+    "load": 8,
+    "targets": [
+      3,
+      4,
+      6,
+      7,
+      8,
+      11,
+      13,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 6,
+      "nearNeighbourPairs": 10,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        3,
+        4,
+        0,
+        1
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.625
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L8V07I12",
+    "gridSize": 5,
+    "load": 8,
+    "targets": [
+      7,
+      9,
+      11,
+      12,
+      14,
+      18,
+      19,
+      21
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 8,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        2,
+        1,
+        2
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.625
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L9V07I01",
+    "gridSize": 5,
+    "load": 9,
+    "targets": [
+      3,
+      4,
+      10,
+      16,
+      17,
+      19,
+      20,
+      21,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 9,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 2,
+      "quadrantOccupancy": [
+        1,
+        2,
+        4,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L9V07I02",
+    "gridSize": 5,
+    "load": 9,
+    "targets": [
+      2,
+      3,
+      5,
+      7,
+      15,
+      20,
+      21,
+      22,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        1,
+        4,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.556
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L9V07I03",
+    "gridSize": 5,
+    "load": 9,
+    "targets": [
+      0,
+      1,
+      5,
+      7,
+      8,
+      10,
+      13,
+      14,
+      22
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 6,
+      "nearNeighbourPairs": 10,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        5,
+        3,
+        1,
+        0
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.444
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L9V07I04",
+    "gridSize": 5,
+    "load": 9,
+    "targets": [
+      2,
+      3,
+      4,
+      11,
+      14,
+      15,
+      16,
+      18,
+      21
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 8,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        3,
+        3,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L9V07I05",
+    "gridSize": 5,
+    "load": 9,
+    "targets": [
+      1,
+      5,
+      7,
+      9,
+      11,
+      16,
+      17,
+      19,
+      20
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 8,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        1,
+        3,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.556
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L9V07I06",
+    "gridSize": 5,
+    "load": 9,
+    "targets": [
+      2,
+      5,
+      6,
+      7,
+      14,
+      17,
+      20,
+      22,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 5,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        4,
+        1,
+        3,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L9V07I07",
+    "gridSize": 5,
+    "load": 9,
+    "targets": [
+      0,
+      3,
+      4,
+      6,
+      9,
+      11,
+      17,
+      20,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        3,
+        2,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.556
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L9V07I08",
+    "gridSize": 5,
+    "load": 9,
+    "targets": [
+      3,
+      10,
+      11,
+      12,
+      14,
+      15,
+      17,
+      22,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        2,
+        3,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.556
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L9V07I09",
+    "gridSize": 5,
+    "load": 9,
+    "targets": [
+      0,
+      3,
+      4,
+      6,
+      10,
+      12,
+      16,
+      17,
+      22
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 10,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        2,
+        3,
+        0
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.556
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L9V07I10",
+    "gridSize": 5,
+    "load": 9,
+    "targets": [
+      0,
+      2,
+      7,
+      8,
+      9,
+      11,
+      16,
+      20,
+      21
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 6,
+      "nearNeighbourPairs": 9,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        2,
+        3,
+        0
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.333
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L9V07I11",
+    "gridSize": 5,
+    "load": 9,
+    "targets": [
+      0,
+      1,
+      3,
+      6,
+      12,
+      13,
+      15,
+      17,
+      18
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 6,
+      "nearNeighbourPairs": 10,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        2,
+        2,
+        1
+      ],
+      "boundingBoxArea": 16,
+      "maxQuarterTurnSymmetry": 0.444
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L9V07I12",
+    "gridSize": 5,
+    "load": 9,
+    "targets": [
+      2,
+      3,
+      4,
+      7,
+      8,
+      9,
+      18,
+      21,
+      22
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 8,
+      "nearNeighbourPairs": 13,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        4,
+        2,
+        1
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.444
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L10V07I01",
+    "gridSize": 5,
+    "load": 10,
+    "targets": [
+      0,
+      7,
+      10,
+      12,
+      16,
+      17,
+      19,
+      20,
+      22,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 9,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        4,
+        0,
+        4,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L10V07I02",
+    "gridSize": 5,
+    "load": 10,
+    "targets": [
+      3,
+      4,
+      6,
+      7,
+      8,
+      10,
+      12,
+      15,
+      18,
+      22
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 6,
+      "nearNeighbourPairs": 13,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        3,
+        2,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L10V07I03",
+    "gridSize": 5,
+    "load": 10,
+    "targets": [
+      0,
+      2,
+      6,
+      9,
+      10,
+      13,
+      14,
+      17,
+      20,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 2,
+      "nearNeighbourPairs": 8,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        3,
+        2,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L10V07I04",
+    "gridSize": 5,
+    "load": 10,
+    "targets": [
+      4,
+      5,
+      7,
+      8,
+      14,
+      15,
+      19,
+      20,
+      21,
+      22
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 8,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L10V07I05",
+    "gridSize": 5,
+    "load": 10,
+    "targets": [
+      0,
+      2,
+      3,
+      5,
+      10,
+      12,
+      14,
+      16,
+      22,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        5,
+        2,
+        2,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L10V07I06",
+    "gridSize": 5,
+    "load": 10,
+    "targets": [
+      0,
+      4,
+      5,
+      7,
+      8,
+      15,
+      16,
+      18,
+      22,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 3,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        2,
+        3,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L10V07I07",
+    "gridSize": 5,
+    "load": 10,
+    "targets": [
+      1,
+      4,
+      11,
+      14,
+      17,
+      19,
+      21,
+      22,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 6,
+      "nearNeighbourPairs": 10,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        2,
+        2,
+        3,
+        3
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L10V07I08",
+    "gridSize": 5,
+    "load": 10,
+    "targets": [
+      1,
+      2,
+      8,
+      9,
+      10,
+      13,
+      15,
+      16,
+      17,
+      21
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 7,
+      "nearNeighbourPairs": 13,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        3,
+        4,
+        0
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.4
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L10V07I09",
+    "gridSize": 5,
+    "load": 10,
+    "targets": [
+      0,
+      4,
+      6,
+      12,
+      14,
+      16,
+      17,
+      19,
+      21,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 10,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        2,
+        3,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.6
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L10V07I10",
+    "gridSize": 5,
+    "load": 10,
+    "targets": [
+      2,
+      3,
+      4,
+      5,
+      10,
+      14,
+      15,
+      19,
+      21,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 7,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        3,
+        2,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.7
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L10V07I11",
+    "gridSize": 5,
+    "load": 10,
+    "targets": [
+      2,
+      4,
+      7,
+      11,
+      13,
+      14,
+      20,
+      22,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 4,
+      "nearNeighbourPairs": 6,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        3,
+        2,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.7
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L10V07I12",
+    "gridSize": 5,
+    "load": 10,
+    "targets": [
+      4,
+      5,
+      6,
+      8,
+      11,
+      16,
+      18,
+      19,
+      21,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 6,
+      "nearNeighbourPairs": 9,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        3,
+        2,
+        2,
+        3
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.7
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L11V07I01",
+    "gridSize": 5,
+    "load": 11,
+    "targets": [
+      1,
+      2,
+      7,
+      8,
+      9,
+      11,
+      14,
+      15,
+      18,
+      20,
+      22
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 6,
+      "nearNeighbourPairs": 13,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        3,
+        3,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.545
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L11V07I02",
+    "gridSize": 5,
+    "load": 11,
+    "targets": [
+      2,
+      4,
+      5,
+      8,
+      9,
+      13,
+      18,
+      20,
+      21,
+      22,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 6,
+      "nearNeighbourPairs": 11,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        2,
+        4,
+        3,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.636
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L11V07I03",
+    "gridSize": 5,
+    "load": 11,
+    "targets": [
+      2,
+      5,
+      6,
+      8,
+      11,
+      12,
+      17,
+      18,
+      20,
+      22,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 6,
+      "nearNeighbourPairs": 15,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        5,
+        1,
+        3,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.727
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L11V07I04",
+    "gridSize": 5,
+    "load": 11,
+    "targets": [
+      0,
+      2,
+      4,
+      6,
+      11,
+      12,
+      13,
+      18,
+      19,
+      20,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 6,
+      "nearNeighbourPairs": 12,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        5,
+        2,
+        1,
+        3
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.727
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L11V07I05",
+    "gridSize": 5,
+    "load": 11,
+    "targets": [
+      3,
+      5,
+      7,
+      9,
+      10,
+      11,
+      15,
+      16,
+      20,
+      22,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 6,
+      "nearNeighbourPairs": 14,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        4,
+        2,
+        4,
+        1
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.545
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L11V07I06",
+    "gridSize": 5,
+    "load": 11,
+    "targets": [
+      0,
+      2,
+      3,
+      4,
+      5,
+      8,
+      9,
+      12,
+      15,
+      16,
+      22
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 7,
+      "nearNeighbourPairs": 13,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        4,
+        3,
+        0
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.636
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L11V07I07",
+    "gridSize": 5,
+    "load": 11,
+    "targets": [
+      0,
+      3,
+      4,
+      6,
+      8,
+      11,
+      16,
+      17,
+      21,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 7,
+      "nearNeighbourPairs": 12,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        3,
+        3,
+        3,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.636
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L11V07I08",
+    "gridSize": 5,
+    "load": 11,
+    "targets": [
+      1,
+      2,
+      5,
+      10,
+      12,
+      13,
+      14,
+      16,
+      18,
+      21,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 7,
+      "nearNeighbourPairs": 12,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        5,
+        2,
+        2,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.727
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L11V07I09",
+    "gridSize": 5,
+    "load": 11,
+    "targets": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      7,
+      11,
+      15,
+      16,
+      17,
+      18
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 8,
+      "nearNeighbourPairs": 15,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        5,
+        2,
+        3,
+        1
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.636
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L11V07I10",
+    "gridSize": 5,
+    "load": 11,
+    "targets": [
+      8,
+      10,
+      11,
+      13,
+      14,
+      15,
+      17,
+      18,
+      21,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 8,
+      "nearNeighbourPairs": 17,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        2,
+        3,
+        3,
+        3
+      ],
+      "boundingBoxArea": 20,
+      "maxQuarterTurnSymmetry": 0.636
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L11V07I11",
+    "gridSize": 5,
+    "load": 11,
+    "targets": [
+      0,
+      1,
+      4,
+      7,
+      9,
+      10,
+      12,
+      16,
+      17,
+      21,
+      22
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 8,
+      "nearNeighbourPairs": 13,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        5,
+        2,
+        4,
+        0
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.545
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L11V07I12",
+    "gridSize": 5,
+    "load": 11,
+    "targets": [
+      0,
+      1,
+      3,
+      7,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      20
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 8,
+      "nearNeighbourPairs": 14,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        3,
+        4,
+        0
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.636
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L12V07I01",
+    "gridSize": 5,
+    "load": 12,
+    "targets": [
+      1,
+      2,
+      3,
+      4,
+      10,
+      11,
+      13,
+      17,
+      19,
+      20,
+      21,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 5,
+      "nearNeighbourPairs": 11,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        3,
+        3,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L12V07I02",
+    "gridSize": 5,
+    "load": 12,
+    "targets": [
+      1,
+      3,
+      4,
+      7,
+      8,
+      9,
+      10,
+      12,
+      16,
+      17,
+      19,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 8,
+      "nearNeighbourPairs": 17,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        4,
+        2,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L12V07I03",
+    "gridSize": 5,
+    "load": 12,
+    "targets": [
+      2,
+      6,
+      9,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      22,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 8,
+      "nearNeighbourPairs": 17,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        3,
+        3,
+        3
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.583
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L12V07I04",
+    "gridSize": 5,
+    "load": 12,
+    "targets": [
+      0,
+      1,
+      7,
+      9,
+      11,
+      12,
+      13,
+      14,
+      15,
+      18,
+      20,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 8,
+      "nearNeighbourPairs": 16,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        5,
+        3,
+        2,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.5
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L12V07I05",
+    "gridSize": 5,
+    "load": 12,
+    "targets": [
+      0,
+      6,
+      8,
+      9,
+      10,
+      13,
+      15,
+      19,
+      21,
+      22,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 7,
+      "nearNeighbourPairs": 13,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        3,
+        3,
+        3
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.583
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L12V07I06",
+    "gridSize": 5,
+    "load": 12,
+    "targets": [
+      2,
+      4,
+      6,
+      9,
+      10,
+      13,
+      14,
+      15,
+      17,
+      18,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 8,
+      "nearNeighbourPairs": 15,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        3,
+        4,
+        2,
+        3
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.417
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L12V07I07",
+    "gridSize": 5,
+    "load": 12,
+    "targets": [
+      0,
+      1,
+      3,
+      4,
+      7,
+      10,
+      13,
+      15,
+      16,
+      20,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 6,
+      "nearNeighbourPairs": 11,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        4,
+        3,
+        3,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L12V07I08",
+    "gridSize": 5,
+    "load": 12,
+    "targets": [
+      0,
+      6,
+      7,
+      8,
+      9,
+      11,
+      13,
+      15,
+      17,
+      19,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 7,
+      "nearNeighbourPairs": 17,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        3,
+        2,
+        3
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L12V07I09",
+    "gridSize": 5,
+    "load": 12,
+    "targets": [
+      0,
+      4,
+      6,
+      7,
+      13,
+      14,
+      15,
+      16,
+      18,
+      19,
+      22,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 8,
+      "nearNeighbourPairs": 15,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        3,
+        3,
+        3,
+        3
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L12V07I10",
+    "gridSize": 5,
+    "load": 12,
+    "targets": [
+      0,
+      1,
+      2,
+      5,
+      7,
+      12,
+      13,
+      14,
+      15,
+      18,
+      21,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 8,
+      "nearNeighbourPairs": 15,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        6,
+        2,
+        2,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.583
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L12V07I11",
+    "gridSize": 5,
+    "load": 12,
+    "targets": [
+      0,
+      2,
+      4,
+      11,
+      13,
+      14,
+      16,
+      17,
+      19,
+      21,
+      23,
+      24
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 7,
+      "nearNeighbourPairs": 13,
+      "maxRowOccupancy": 3,
+      "maxColumnOccupancy": 4,
+      "quadrantOccupancy": [
+        3,
+        3,
+        3,
+        3
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.667
+    },
+    "bankVersion": "0.7-moderate-control"
+  },
+  {
+    "id": "G5L12V07I12",
+    "gridSize": 5,
+    "load": 12,
+    "targets": [
+      2,
+      4,
+      5,
+      6,
+      8,
+      11,
+      15,
+      16,
+      17,
+      18,
+      20,
+      23
+    ],
+    "spatialMetrics": {
+      "orthogonalAdjacency": 8,
+      "nearNeighbourPairs": 16,
+      "maxRowOccupancy": 4,
+      "maxColumnOccupancy": 3,
+      "quadrantOccupancy": [
+        4,
+        2,
+        4,
+        2
+      ],
+      "boundingBoxArea": 25,
+      "maxQuarterTurnSymmetry": 0.583
+    },
+    "bankVersion": "0.7-moderate-control"
+  }
+]
+</script>
+<script>
+"use strict";
+// VSWM v0.7.3: instructions before each task; stable, uncluttered trial layout.
+// Layout and touch-input repair. Adaptive rules, stimuli, timings and receiver are unchanged.
+const CONFIG={version:"0.7.3",showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3,gridMin:{3:2,4:3,5:5},gridMax:{3:5,4:8,5:12},bridgeLoad:{4:4,5:6},receiverUrl:"https://script.google.com/macros/s/AKfycbyeYk7Y6JLqELCKRbw3aNVgiqd_uCpqlUgRJ2Mj3oNU5ImZROj62hN0EeBkolFxB1LH/exec"};
+const $=id=>document.getElementById(id);let bank=[],used=new Set(),results={simultaneous:[],sequential:[]};let participant="",yearGroup="",sessionId="",task="simultaneous",gridSize=3,load=2,phase="setup",current=null,selected=[],startAt=0,recallAt=0,observedMs=0,timers=[],sequentialGoodStreak=0,failures=0,submissionStarted=false,submitLocked=false;
+const grid=$("grid");const pause=ms=>new Promise(resolve=>{const t=setTimeout(resolve,ms);timers.push(t)});function clearTimers(){for(const t of timers)clearTimeout(t);timers=[]}function cells(){return [...grid.children]}
+// Keep the actual button elements alive throughout a trial. Touch/pen input
+// is handled once on release; native clicks remain available for mouse/keyboard.
+function drawGrid(n) {
+  grid.innerHTML = "";
+  grid.style.gridTemplateColumns = `repeat(${n},minmax(0,1fr))`;
+  grid.style.gridTemplateRows = `repeat(${n},minmax(0,1fr))`;
+  for (let i=0;i<n*n;i++) {
+    const cell=document.createElement("button");
+    cell.type="button"; cell.className="cell";
+    cell.setAttribute("aria-label",`Row ${Math.floor(i/n)+1}, column ${i%n+1}`);
+    let press=null, lastTouch=-Infinity;
+    cell.addEventListener("pointerdown",e=>{
+      if(e.pointerType==="mouse" || !e.isPrimary || phase!=="recall") return;
+      press={id:e.pointerId,x:e.clientX,y:e.clientY};
+      e.preventDefault(); // Avoid touch focus scrolling; keyboard focus remains available.
+      try { cell.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    cell.addEventListener("pointerup",e=>{
+      if(!press || press.id!==e.pointerId) return;
+      const p=press; press=null; lastTouch=performance.now();
+      e.preventDefault();
+      const tolerance=Math.max(12,Math.min(24,cell.getBoundingClientRect().width*0.4));
+      if(Math.hypot(e.clientX-p.x,e.clientY-p.y)<=tolerance) pick(i);
+    });
+    cell.addEventListener("pointercancel",()=>{press=null;lastTouch=performance.now();});
+    cell.addEventListener("click",e=>{
+      // Ignore the compatibility click after a touch; do not suppress keyboard clicks.
+      if(e.detail!==0 && performance.now()-lastTouch<700) return;
+      pick(i);
+    });
+    grid.appendChild(cell);
+  }
+}
+function render(activeTarget=null) {
+  cells().forEach((cell,i)=>{
+    cell.classList.toggle("target",phase==="showing" &&
+      (activeTarget===null ? task==="simultaneous" && current.targets.includes(i) : activeTarget===i));
+    const order=selected.indexOf(i), chosen=phase==="recall" && order>=0;
+    cell.classList.toggle("selected",chosen);
+    const text=chosen && task==="sequential" ? String(order+1) : "";
+    if(cell.textContent!==text) cell.textContent=text;
+    // Gate responses in pick(), rather than toggling native disabled under a finger.
+    cell.disabled=false;
+    cell.tabIndex=phase==="recall"?0:-1;
+    cell.setAttribute("aria-disabled",String(phase!=="recall"));
+    cell.setAttribute("aria-pressed",String(chosen));
+  });
+}
+function pick(i){if(phase!=="recall")return;const index=selected.indexOf(i);if(task==="simultaneous"){if(index>=0)selected.splice(index,1);else if(selected.length<current.load)selected.push(i)}else if(index<0&&selected.length<current.load)selected.push(i);render();$("undoBtn").hidden=task!=="sequential"||!selected.length}
+function validate(items){if(!Array.isArray(items)||!items.length)throw Error("Empty item bank");const ids=new Set();for(const x of items){if(!x.id||ids.has(x.id)||![3,4,5].includes(x.gridSize)||!Number.isInteger(x.load)||x.load<2||x.load>x.gridSize*x.gridSize||!Array.isArray(x.targets)||x.targets.length!==x.load||new Set(x.targets).size!==x.load||x.targets.some(v=>!Number.isInteger(v)||v<0||v>=x.gridSize*x.gridSize))throw Error(`Invalid item ${x.id}`);ids.add(x.id)}return items}
+async function init(){
+  try {
+    bank=validate(JSON.parse($("itemBank").textContent));
+    $("startBtn").disabled=false;
+  } catch(e) {
+    $("setupError").textContent=`The assessment could not load: ${e.message}`;
+  }
+}
+function resetTask(which){task=which;used=new Set();gridSize=3;load=CONFIG.initialLoad;sequentialGoodStreak=0;failures=0;phase="ready";$("taskTitle").textContent=which==="simultaneous"?"Simultaneous":"Sequential";$("assessment").hidden=false;$("transition").hidden=true;drawGrid(gridSize);enterAssessmentLayout();nextTrial()}
+function start(){if(document.activeElement instanceof HTMLElement)document.activeElement.blur();participant=$("participantId").value.trim();yearGroup=$("yearGroup").value;if(!participant||!yearGroup)return alert("Enter participant code and year group.");if(!/^[A-Za-z0-9_-]{2,40}$/.test(participant))return alert("Use 2–40 letters, numbers, underscores or hyphens.");sessionId=`vswm-${Date.now()}`;results={simultaneous:[],sequential:[]};displayInterruptions=[];submissionStarted=false;$("setup").hidden=true;$("results").hidden=true;resetTask("simultaneous")}
+function pickItem(){let pool=bank.filter(x=>!used.has(x.id)&&x.gridSize===gridSize&&x.load===load);if(!pool.length)pool=bank.filter(x=>x.gridSize===gridSize&&x.load===load);if(!pool.length)return null;return pool[Math.floor(Math.random()*pool.length)]}
+function nextTrial(){const h=results[task];if(h.length>=CONFIG.trialsPerTask)return completeTask();current=pickItem();if(!current){completeTask();return}used.add(current.id);selected=[];submitLocked=false;phase="ready";$("feedback").textContent="";$("submitBtn").hidden=true;$("undoBtn").hidden=true;$("beginTrialBtn").hidden=false;$("progress").textContent=`${h.length+1}/${CONFIG.trialsPerTask}`;$("message").textContent=`${gridSize}×${gridSize} · ${load} locations`;if(cells().length!==gridSize*gridSize)drawGrid(gridSize);clearTimers();render()}
+function beginTrial(){if(phase!=="ready"||!current)return;phase="showing";$("beginTrialBtn").hidden=true;$("message").textContent=task==="simultaneous"?"Remember the blue squares":"Remember the order";startAt=performance.now();render();if(task==="simultaneous")timers.push(setTimeout(()=>beginRecall(),CONFIG.showMs));else runSequence(current)}
+async function runSequence(item){for(const pos of item.targets){if(phase!=="showing")return;render(pos);await pause(CONFIG.sequenceOnMs);if(phase!=="showing")return;render(-1);await pause(CONFIG.sequenceGapMs)}if(phase==="showing")beginRecall()}
+function beginRecall(){observedMs=Math.round(performance.now()-startAt);recallAt=performance.now();phase="recall";$("message").textContent=task==="simultaneous"?"Select the remembered locations":"Tap locations in presentation order";$("submitBtn").hidden=false;render()}
+function advance(exact,proportion){if(task==="sequential"){if(exact){sequentialGoodStreak++;if(sequentialGoodStreak>=2){sequentialGoodStreak=0;failures=0;load++}}else{sequentialGoodStreak=0;failures++;if(proportion<0.6)load=Math.max(CONFIG.gridMin[gridSize],load-1)}}else{if(exact){failures=0;load++}else{failures++;if(proportion<0.6)load=Math.max(CONFIG.gridMin[gridSize],load-1)}}if(gridSize===3&&load>CONFIG.gridMax[3]){gridSize=4;load=CONFIG.bridgeLoad[4]}else if(gridSize===4&&load>CONFIG.gridMax[4]){gridSize=5;load=CONFIG.bridgeLoad[5]}load=Math.max(CONFIG.gridMin[gridSize],Math.min(load,CONFIG.gridMax[gridSize]))}
+function submit(){if(phase!=="recall"||submitLocked)return;submitLocked=true;const item=current,targetSet=new Set(item.targets),hits=selected.filter(v=>targetSet.has(v)).length,falseSelections=selected.length-hits,correctPositions=selected.reduce((sum,v,i)=>sum+(item.targets[i]===v?1:0),0),exact=task==="simultaneous"?(hits===item.load&&falseSelections===0):(correctPositions===item.load&&selected.length===item.load),proportion=task==="simultaneous"?hits/item.load:correctPositions/item.load,prev=results[task].at(-1),transitionTrial=!!prev&&prev.gridSize!==item.gridSize;const record={trial:results[task].length+1,itemId:item.id,condition:task,gridSize:item.gridSize,load:item.load,targets:[...item.targets],responses:[...selected],hits,omissions:item.load-hits,falseSelections,locationProportion:hits/item.load,correctSerialPositions:task==="sequential"?correctPositions:null,orderProportion:task==="sequential"?correctPositions/item.load:null,exact,adaptiveStage:"exploratory",transitionTrial,spatialMetrics:item.spatialMetrics||null,intendedPresentationMs:task==="simultaneous"?CONFIG.showMs:null,observedPresentationMs:observedMs,sequenceOnMs:task==="sequential"?CONFIG.sequenceOnMs:null,sequenceGapMs:task==="sequential"?CONFIG.sequenceGapMs:null,responseTimeMs:Math.round(performance.now()-recallAt),timestamp:new Date().toISOString()};results[task].push(record);advance(exact,proportion);phase="feedback";render();$("submitBtn").hidden=true;$("undoBtn").hidden=true;$("beginTrialBtn").hidden=true;$("message").textContent="Recorded";$("feedback").textContent=task==="simultaneous"?`${hits}/${item.load} locations`:`${hits}/${item.load} locations · ${correctPositions} in order`;timers.push(setTimeout(()=>{if(phase==="feedback")nextTrial()},450))}
+function completeTask(){clearTimers();phase="transition";$("assessment").hidden=true;leaveAssessmentLayout();if(task==="simultaneous")$("transition").hidden=false;else finish()}
+async function sendResults(){if(submissionStarted)return;submissionStarted=true;const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},displayInterruptions:[...displayInterruptions],note:"Exploratory pilot data; not calibrated or normed."};$("uploadStatus").textContent="Submitting results…";try{await fetch(CONFIG.receiverUrl,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),keepalive:true});$("uploadStatus").textContent="Submission request sent. Verify receipt in the research spreadsheet."}catch(e){$("uploadStatus").textContent="Submission could not be confirmed. Download the JSON backup.";console.error(e)}}
+function finish(){$("transition").hidden=true;$("results").hidden=false;const a=results.simultaneous,b=results.sequential;$("summary").textContent=`Simultaneous ${a.filter(x=>x.exact).length}/${a.length} · Sequential ${b.filter(x=>x.exact).length}/${b.length}`;sendResults()}
+function download(){const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},displayInterruptions:[...displayInterruptions],note:"Exploratory pilot data; not calibrated or normed."};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`${participant}_VSWM_${sessionId}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+
+// Top-aligned, pixel-locked board. Toolbar/keyboard height notifications do not
+// recenter the board. A genuine resize that no longer fits interrupts an exposed
+// trial instead of changing the remembered coordinates while it is being answered.
+let layoutSnapshot=null, resizeTimer=null, displayInterruptions=[];
+function viewportSize() {
+  const probe=$("viewportReference").getBoundingClientRect();
+  const width=document.documentElement.clientWidth || window.innerWidth;
+  const height=Math.min(window.innerHeight,probe.height||window.innerHeight);
+  return {width,height};
+}
+function enterAssessmentLayout() {
+  document.activeElement?.blur?.();
+  document.body.classList.add("task-active");
+  window.scrollTo(0,0);
+  applyBoardLayout();
+}
+function leaveAssessmentLayout() {
+  clearTimeout(resizeTimer);
+  document.body.classList.remove("task-active");
+  $("displayNotice").hidden=true;
+  layoutSnapshot=null;
+}
+function applyBoardLayout() {
+  if($("assessment").hidden) return;
+  const v=viewportSize(), panel=$("assessment");
+  const width=Math.min(v.width,900);
+  const pad=getComputedStyle(panel);
+  const px=parseFloat(pad.paddingLeft)+parseFloat(pad.paddingRight);
+  const py=parseFloat(pad.paddingTop)+parseFloat(pad.paddingBottom);
+  const landscape=v.width>v.height && v.height<=600;
+  const aside=Math.min(190,Math.max(140,width*0.25));
+  const side=Math.max(1,Math.floor(Math.min(520,
+    width-px-(landscape?aside+16:8),
+    v.height-py-(landscape?8:108))));
+  panel.classList.toggle("landscape",landscape);
+  panel.style.width=`${width}px`;
+  panel.style.setProperty("--board-side",`${side}px`);
+  panel.style.setProperty("--side-panel",`${aside}px`);
+  // Height may have unused space, but no flexible row is allowed to recenter the grid.
+  panel.style.height=`${v.height}px`;
+  layoutSnapshot={...v,widthUsed:width,side,landscape};
+}
+function interruptForDisplayChange(reason) {
+  if(phase!=="showing" && phase!=="recall") return;
+  displayInterruptions.push({condition:task,itemId:current?.id||null,
+    trial:results[task].length+1,phase,reason,timestamp:new Date().toISOString()});
+  clearTimers(); selected=[]; phase="display-paused";
+  $("beginTrialBtn").hidden=true;$("submitBtn").hidden=true;$("undoBtn").hidden=true;
+  render();$("displayNotice").hidden=false;
+}
+function onDisplayResize() {
+  if($("assessment").hidden || !layoutSnapshot) return;
+  const v=viewportSize();
+  const board=grid.getBoundingClientRect();
+  const actions=document.querySelector(".actions").getBoundingClientRect();
+  const noLongerFits=Math.max(board.bottom,actions.bottom)>v.height-2;
+  const widthChanged=Math.abs(v.width-layoutSnapshot.width)>1;
+  if(!widthChanged && !noLongerFits) return;
+  interruptForDisplayChange("viewport-resize");
+  clearTimeout(resizeTimer);
+  resizeTimer=setTimeout(()=>{
+    if($("assessment").hidden) return;
+    if(phase==="feedback") { clearTimers(); nextTrial(); }
+    applyBoardLayout();
+  },180);
+}
+window.addEventListener("resize",onDisplayResize);
+window.addEventListener("orientationchange",()=>{
+  if(!$("assessment").hidden) interruptForDisplayChange("orientation-change");
+  clearTimeout(resizeTimer);
+  resizeTimer=setTimeout(()=>{if(!$("assessment").hidden)applyBoardLayout()},250);
+});
+if(window.visualViewport) window.visualViewport.addEventListener("resize",onDisplayResize);
+$("resumeDisplayBtn").addEventListener("click",()=>{
+  if(phase!=="display-paused")return;
+  clearTimeout(resizeTimer);$("displayNotice").hidden=true;applyBoardLayout();
+  // The exposed item remains used. Present a fresh item at the same grid/load.
+  nextTrial();
+});
+
+$("startBtn").addEventListener("click",start);$("beginTrialBtn").addEventListener("click",beginTrial);$("continueBtn").addEventListener("click",()=>resetTask("sequential"));$("submitBtn").addEventListener("click",submit);$("undoBtn").addEventListener("click",()=>{selected.pop();render();$("undoBtn").hidden=!selected.length});$("downloadBtn").addEventListener("click",download);$("restartBtn").addEventListener("click",()=>{clearTimers();leaveAssessmentLayout();$("results").hidden=true;$("setup").hidden=false});init();
+
+</script>
 </body>
 </html>
