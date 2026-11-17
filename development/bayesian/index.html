@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f5f7fa">
-  <title>Spatial Memory · v0.8.3 Independent Demonstrations</title>
+  <title>Spatial Memory · v0.8.4 Independent 16-Trial Conditions</title>
   <style>
 /* VSWM 0.7.3 — stable top-aligned stage and independent touch activation. */
 *{box-sizing:border-box}
@@ -87,12 +87,12 @@ body.task-active #bayesToggle{display:block}
       <p>Press <strong>Start trial</strong> when you are ready for each pattern.</p>
     </div>
     <div class="launch-options">
-      <button id="demoSimBtn" disabled>Demonstrate simultaneous · 4 trials</button>
-      <button id="demoSeqBtn" disabled>Demonstrate sequential · 4 trials</button>
+      <button id="demoSimBtn" disabled>Simultaneous only · 16 trials</button>
+      <button id="demoSeqBtn" disabled>Sequential only · 16 trials</button>
       <button id="fullAssessmentBtn" disabled>Full assessment · 16 + 16 trials</button>
     </div>
     <p id="setupError" role="alert"></p>
-    <p class="version-label">v0.8.3 · Bayesian development</p>
+    <p class="version-label">v0.8.4 · Bayesian development</p>
   </section>
 
   <section id="transition" hidden>
@@ -130,7 +130,7 @@ body.task-active #bayesToggle{display:block}
     <p id="uploadStatus" role="status"></p>
     <button id="downloadBtn">Download data backup</button>
     <button id="restartBtn">Finish</button>
-    <p class="version-label">v0.8.3 · Bayesian development</p>
+    <p class="version-label">v0.8.4 · Bayesian development</p>
   </section>
 </main>
 
@@ -6307,7 +6307,7 @@ body.task-active #bayesToggle{display:block}
 "use strict";
 // VSWM v0.8.0: v0.7.3 task plus researcher-only Bayesian shadow estimator.
 // Layout and touch-input repair. Adaptive rules, stimuli, timings and receiver are unchanged.
-const CONFIG={version:"0.8.3-adult-anchor-shadow",showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3,gridMin:{3:2,4:3,5:5},gridMax:{3:5,4:8,5:12},bridgeLoad:{4:4,5:6},receiverUrl:"https://script.google.com/macros/s/AKfycbyeYk7Y6JLqELCKRbw3aNVgiqd_uCpqlUgRJ2Mj3oNU5ImZROj62hN0EeBkolFxB1LH/exec"};
+const CONFIG={version:"0.8.4-independent-conditions",showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3,gridMin:{3:2,4:3,5:5},gridMax:{3:5,4:8,5:12},bridgeLoad:{4:4,5:6},receiverUrl:"https://script.google.com/macros/s/AKfycbyeYk7Y6JLqELCKRbw3aNVgiqd_uCpqlUgRJ2Mj3oNU5ImZROj62hN0EeBkolFxB1LH/exec"};
 const $=id=>document.getElementById(id);let bank=[],used=new Set(),results={simultaneous:[],sequential:[]};let participant="",yearGroup="",sessionId="",task="simultaneous",runMode="full",sessionTrialLimit=16,gridSize=3,load=2,phase="setup",current=null,selected=[],startAt=0,recallAt=0,observedMs=0,timers=[],sequentialGoodStreak=0,failures=0,submissionStarted=false,submitLocked=false;
 const grid=$("grid");const pause=ms=>new Promise(resolve=>{const t=setTimeout(resolve,ms);timers.push(t)});function clearTimers(){for(const t of timers)clearTimeout(t);timers=[]}function cells(){return [...grid.children]}
 // Keep the actual button elements alive throughout a trial. Touch/pen input
@@ -6376,7 +6376,7 @@ function start(mode){
   if(!/^[A-Za-z0-9_-]{2,40}$/.test(participant))return alert("Use 2–40 letters, numbers, underscores or hyphens.");
   sessionId=`vswm-${Date.now()}`;runMode=mode;
   const demo=mode==="demo-simultaneous"||mode==="demo-sequential";
-  sessionTrialLimit=demo?4:16;
+  sessionTrialLimit=16;
   results={simultaneous:[],sequential:[]};displayInterruptions=[];submissionStarted=false;
   bayesState={simultaneous:makeBayesPrior(),sequential:makeBayesPrior()};bayesHistory=[];
   setBayesianPanel(false);$("setup").hidden=true;$("results").hidden=true;
@@ -6395,7 +6395,7 @@ function completeTask(){
   else finish();
 }
 async function sendResults(){if(submissionStarted)return;submissionStarted=true;const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,runMode,sessionTrialLimit,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},bayesianShadow:bayesHistory,displayInterruptions:[...displayInterruptions],note:"Exploratory pilot data; not calibrated or normed."};$("uploadStatus").textContent="Submitting results…";try{await fetch(CONFIG.receiverUrl,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),keepalive:true});$("uploadStatus").textContent="Submission request sent. Verify receipt in the research spreadsheet."}catch(e){$("uploadStatus").textContent="Submission could not be confirmed. Download the JSON backup.";console.error(e)}}
-function finish(){$("transition").hidden=true;$("results").hidden=false;const a=results.simultaneous,b=results.sequential;$("summary").textContent=`${runMode.startsWith("demo")?"Demonstration":"Full assessment"} · Simultaneous ${a.filter(x=>x.exact).length}/${a.length} · Sequential ${b.filter(x=>x.exact).length}/${b.length}`;sendResults()}
+function finish(){$("transition").hidden=true;$("results").hidden=false;const a=results.simultaneous,b=results.sequential;$("summary").textContent=`${runMode==="demo-simultaneous"?"Simultaneous-only session":runMode==="demo-sequential"?"Sequential-only session":"Full assessment"} · Simultaneous ${a.filter(x=>x.exact).length}/${a.length} · Sequential ${b.filter(x=>x.exact).length}/${b.length}`;sendResults()}
 function download(){const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,runMode,sessionTrialLimit,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},bayesianShadow:bayesHistory,displayInterruptions:[...displayInterruptions],note:"Exploratory pilot data; not calibrated or normed."};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`${participant}_VSWM_${sessionId}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 
 // Top-aligned, pixel-locked board. Toolbar/keyboard height notifications do not
@@ -6451,7 +6451,8 @@ function updateBayesianShadow(condition,record){
   const likelihood=pCorrect.map(p=>record.exact?p:1-p);
   const raw=prior.p.map((p,i)=>p*likelihood[i]),evidence=raw.reduce((s,v)=>s+v,0);
   const posterior={xs:prior.xs,p:raw.map(v=>v/evidence)},qm=bayesMoments(posterior);
-  const pAtMean=logistic(a*(pm.mean-b)),observedLikelihood=record.exact?pAtMean:1-pAtMean;\n  const itemInformation=a*a*pAtMean*(1-pAtMean);
+  const pAtMean=logistic(a*(pm.mean-b)),observedLikelihood=record.exact?pAtMean:1-pAtMean;
+  const itemInformation=a*a*pAtMean*(1-pAtMean);
   bayesState[condition]=posterior;
   const u={condition,trial:record.trial,gridSize:record.gridSize,load:record.load,exact:record.exact,a,b,difficultySource:difficulty.source,
     priorMean:pm.mean,priorSd:pm.sd,pCorrectAtPriorMean:pAtMean,
