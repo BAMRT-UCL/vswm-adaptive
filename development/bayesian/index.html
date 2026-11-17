@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f5f7fa">
-  <title>Spatial Memory · v0.8.4 Independent 16-Trial Conditions</title>
+  <title>Spatial Memory · v0.9.0 Threshold + Bayesian</title>
   <style>
 /* VSWM 0.7.3 — stable top-aligned stage and independent touch activation. */
 *{box-sizing:border-box}
@@ -56,8 +56,8 @@ body.task-active main{min-height:0}
 #bayesPanel .bayes-stats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
 #bayesPanel .bayes-stat{background:#f1f4f8;border-radius:7px;padding:8px}
 #bayesPanel .bayes-stat strong{display:block;font-size:17px;font-variant-numeric:tabular-nums}
-#bayesPlot{height:100px;display:flex;align-items:flex-end;gap:1px;padding:5px 2px 0;border-bottom:1px solid #9aa9bb;background:linear-gradient(to top,transparent 49%,#e8edf3 50%,transparent 51%)}
-#bayesPlot span{flex:1;min-width:1px;background:#3679b8;border-radius:2px 2px 0 0}
+#bayesPlot{display:block;width:100%;height:110px;border-bottom:1px solid #9aa9bb;background:linear-gradient(to top,transparent 49%,#e8edf3 50%,transparent 51%)}
+.bayes-legend{display:flex;justify-content:space-around;font-size:10px;color:#58677a}.bayes-legend span:first-child:before{content:"";display:inline-block;width:12px;border-top:2px dashed #94a3b8;margin-right:4px}.bayes-legend span:last-child:before{content:"";display:inline-block;width:12px;border-top:2px solid #2563eb;margin-right:4px}
 #bayesPanel .bayes-note{font-size:11px;color:#58677a}
 @media(max-width:600px){#bayesPanel{top:auto;bottom:62px;right:8px;width:calc(100vw - 16px);max-height:52vh}#bayesToggle{right:8px;bottom:8px}}
 
@@ -87,12 +87,12 @@ body.task-active #bayesToggle{display:block}
       <p>Press <strong>Start trial</strong> when you are ready for each pattern.</p>
     </div>
     <div class="launch-options">
-      <button id="demoSimBtn" disabled>Simultaneous only · 16 trials</button>
-      <button id="demoSeqBtn" disabled>Sequential only · 16 trials</button>
+      <button id="demoSimBtn" disabled>Demonstrate simultaneous · 4 trials</button>
+      <button id="demoSeqBtn" disabled>Demonstrate sequential · 4 trials</button>
       <button id="fullAssessmentBtn" disabled>Full assessment · 16 + 16 trials</button>
     </div>
     <p id="setupError" role="alert"></p>
-    <p class="version-label">v0.8.4 · Bayesian development</p>
+    <p class="version-label">v0.9.0 · Threshold + Bayesian</p>
   </section>
 
   <section id="transition" hidden>
@@ -130,7 +130,7 @@ body.task-active #bayesToggle{display:block}
     <p id="uploadStatus" role="status"></p>
     <button id="downloadBtn">Download data backup</button>
     <button id="restartBtn">Finish</button>
-    <p class="version-label">v0.8.4 · Bayesian development</p>
+    <p class="version-label">v0.9.0 · Threshold + Bayesian</p>
   </section>
 </main>
 
@@ -150,15 +150,15 @@ body.task-active #bayesToggle{display:block}
     <div class="bayes-stat"><span>Posterior mean θ</span><strong id="bayesPostMean">0.000</strong></div>
     <div class="bayes-stat"><span>Posterior SD</span><strong id="bayesPostSd">1.500</strong></div>
   </div>
-  <h3>Posterior distribution</h3><div id="bayesPlot" role="img" aria-label="Posterior density across latent ability values"></div>
+  <h3>Posterior distribution</h3><svg id="bayesPlot" viewBox="0 0 320 110" role="img" aria-label="Prior and posterior density over ability"><path id="bayesPriorPath" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 3"/><path id="bayesPosteriorPath" fill="none" stroke="#2563eb" stroke-width="2.5"/></svg><div class="bayes-legend"><span>Prior</span><span>Posterior</span></div>
   <p class="bayes-note">Horizontal axis: θ from −4 to +4. Bars show relative posterior density.</p>
   <h3>Adult-reference anchors · provisional</h3>
   <p class="bayes-note">Simultaneous: 3×3 / 2 locations → θ = −1 reference; 4×4 / 4 → θ = 0 reference; 5×5 / 7 → θ = +1 reference. These are pilot hypotheses, not population norms. Sequential anchors are not yet specified.</p>
   <h3>Latest update</h3><p id="bayesTrialLine">No response recorded yet.</p><p id="bayesEvidenceLine" class="bayes-note">The model starts with a Normal(0, 1.5²) prior.</p>
   <h3>Provisional assumptions</h3>
-  <p class="bayes-note">Discrimination is fixed at a = 1.00. Simultaneous reference anchors: 3×3/2 locations b = −1; 4×4/4 locations b = 0; 5×5/7 locations b = +1. Other combinations use a legacy provisional fallback and are not calibrated. Sequential difficulty remains provisional pending separate reference anchors.</p>
-  <p class="bayes-note">The first version uses exact versus non-exact response as a binary likelihood. Location accuracy, omissions, false selections and serial-position scores remain available separately for later partial-credit modelling.</p>
-  <p class="bayes-note">Simultaneous and sequential conditions have separate posterior distributions. This shadow estimate does not change the existing adaptive algorithm.</p>
+  <p class="bayes-note">Discrimination is fixed at a = 1.00, with a provisional 5% lapse and 2% lower response floor. Simultaneous reference anchors: 3×3/2 locations b = −1; 4×4/4 locations b = 0; 5×5/7 locations b = +1. Other combinations use a legacy provisional fallback and are not calibrated. Sequential difficulty remains provisional pending separate reference anchors.</p>
+  <p class="bayes-note">The posterior uses exact versus non-exact responses with provisional lapse/guess floors. The threshold controller separately uses repeated exact responses. Location accuracy, omissions, false selections and serial-position scores remain available separately for later partial-credit modelling.</p>
+  <p class="bayes-note">Simultaneous and sequential conditions have separate posterior distributions. The Bayesian posterior is descriptive; the threshold controller determines the next trial.</p>
 </aside>
 
 <div id="viewportReference" aria-hidden="true"></div>
@@ -6307,8 +6307,8 @@ body.task-active #bayesToggle{display:block}
 "use strict";
 // VSWM v0.8.0: v0.7.3 task plus researcher-only Bayesian shadow estimator.
 // Layout and touch-input repair. Adaptive rules, stimuli, timings and receiver are unchanged.
-const CONFIG={version:"0.8.4-independent-conditions",showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3,gridMin:{3:2,4:3,5:5},gridMax:{3:5,4:8,5:12},bridgeLoad:{4:4,5:6},receiverUrl:"https://script.google.com/macros/s/AKfycbyeYk7Y6JLqELCKRbw3aNVgiqd_uCpqlUgRJ2Mj3oNU5ImZROj62hN0EeBkolFxB1LH/exec"};
-const $=id=>document.getElementById(id);let bank=[],used=new Set(),results={simultaneous:[],sequential:[]};let participant="",yearGroup="",sessionId="",task="simultaneous",runMode="full",sessionTrialLimit=16,gridSize=3,load=2,phase="setup",current=null,selected=[],startAt=0,recallAt=0,observedMs=0,timers=[],sequentialGoodStreak=0,failures=0,submissionStarted=false,submitLocked=false;
+const CONFIG={version:"0.9.0-threshold-bayesian",showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3,gridMin:{3:2,4:3,5:5},gridMax:{3:5,4:8,5:12},bridgeLoad:{4:4,5:6},receiverUrl:"https://script.google.com/macros/s/AKfycbyeYk7Y6JLqELCKRbw3aNVgiqd_uCpqlUgRJ2Mj3oNU5ImZROj62hN0EeBkolFxB1LH/exec"};
+const $=id=>document.getElementById(id);let bank=[],used=new Set(),results={simultaneous:[],sequential:[]};let participant="",yearGroup="",sessionId="",task="simultaneous",runMode="full",sessionTrialLimit=16,gridSize=3,load=2,phase="setup",highestSuccessful={simultaneous:null,sequential:null},thresholdHistory={simultaneous:[],sequential:[]},current=null,selected=[],startAt=0,recallAt=0,observedMs=0,timers=[],sequentialGoodStreak=0,failures=0,submissionStarted=false,submitLocked=false;
 const grid=$("grid");const pause=ms=>new Promise(resolve=>{const t=setTimeout(resolve,ms);timers.push(t)});function clearTimers(){for(const t of timers)clearTimeout(t);timers=[]}function cells(){return [...grid.children]}
 // Keep the actual button elements alive throughout a trial. Touch/pen input
 // is handled once on release; native clicks remain available for mouse/keyboard.
@@ -6376,8 +6376,8 @@ function start(mode){
   if(!/^[A-Za-z0-9_-]{2,40}$/.test(participant))return alert("Use 2–40 letters, numbers, underscores or hyphens.");
   sessionId=`vswm-${Date.now()}`;runMode=mode;
   const demo=mode==="demo-simultaneous"||mode==="demo-sequential";
-  sessionTrialLimit=16;
-  results={simultaneous:[],sequential:[]};displayInterruptions=[];submissionStarted=false;
+  sessionTrialLimit=demo?4:16;
+  results={simultaneous:[],sequential:[]};highestSuccessful={simultaneous:null,sequential:null};thresholdHistory={simultaneous:[],sequential:[]};displayInterruptions=[];submissionStarted=false;
   bayesState={simultaneous:makeBayesPrior(),sequential:makeBayesPrior()};bayesHistory=[];
   setBayesianPanel(false);$("setup").hidden=true;$("results").hidden=true;
   resetTask(mode==="demo-sequential"?"sequential":"simultaneous");
@@ -6387,24 +6387,47 @@ function nextTrial(){const h=results[task];if(h.length>=sessionTrialLimit)return
 function beginTrial(){if(phase!=="ready"||!current)return;phase="showing";$("beginTrialBtn").hidden=true;$("message").textContent=task==="simultaneous"?"Remember the blue squares":"Remember the order";startAt=performance.now();render();if(task==="simultaneous")timers.push(setTimeout(()=>beginRecall(),CONFIG.showMs));else runSequence(current)}
 async function runSequence(item){for(const pos of item.targets){if(phase!=="showing")return;render(pos);await pause(CONFIG.sequenceOnMs);if(phase!=="showing")return;render(-1);await pause(CONFIG.sequenceGapMs)}if(phase==="showing")beginRecall()}
 function beginRecall(){observedMs=Math.round(performance.now()-startAt);recallAt=performance.now();phase="recall";$("message").textContent=task==="simultaneous"?"Select the remembered locations":"Tap locations in presentation order";$("submitBtn").hidden=false;render()}
-function advance(exact,proportion){if(task==="sequential"){if(exact){sequentialGoodStreak++;if(sequentialGoodStreak>=2){sequentialGoodStreak=0;failures=0;load++}}else{sequentialGoodStreak=0;failures++;if(proportion<0.6)load=Math.max(CONFIG.gridMin[gridSize],load-1)}}else{if(exact){failures=0;load++}else{failures++;if(proportion<0.6)load=Math.max(CONFIG.gridMin[gridSize],load-1)}}if(gridSize===3&&load>CONFIG.gridMax[3]){gridSize=4;load=CONFIG.bridgeLoad[4]}else if(gridSize===4&&load>CONFIG.gridMax[4]){gridSize=5;load=CONFIG.bridgeLoad[5]}load=Math.max(CONFIG.gridMin[gridSize],Math.min(load,CONFIG.gridMax[gridSize]))}
-function submit(){if(phase!=="recall"||submitLocked)return;submitLocked=true;const item=current,targetSet=new Set(item.targets),hits=selected.filter(v=>targetSet.has(v)).length,falseSelections=selected.length-hits,correctPositions=selected.reduce((sum,v,i)=>sum+(item.targets[i]===v?1:0),0),exact=task==="simultaneous"?(hits===item.load&&falseSelections===0):(correctPositions===item.load&&selected.length===item.load),proportion=task==="simultaneous"?hits/item.load:correctPositions/item.load,prev=results[task].at(-1),transitionTrial=!!prev&&prev.gridSize!==item.gridSize;const record={trial:results[task].length+1,itemId:item.id,condition:task,gridSize:item.gridSize,load:item.load,targets:[...item.targets],responses:[...selected],hits,omissions:item.load-hits,falseSelections,locationProportion:hits/item.load,correctSerialPositions:task==="sequential"?correctPositions:null,orderProportion:task==="sequential"?correctPositions/item.load:null,exact,adaptiveStage:"exploratory",transitionTrial,spatialMetrics:item.spatialMetrics||null,intendedPresentationMs:task==="simultaneous"?CONFIG.showMs:null,observedPresentationMs:observedMs,sequenceOnMs:task==="sequential"?CONFIG.sequenceOnMs:null,sequenceGapMs:task==="sequential"?CONFIG.sequenceGapMs:null,responseTimeMs:Math.round(performance.now()-recallAt),timestamp:new Date().toISOString()};results[task].push(record);updateBayesianShadow(task,record);advance(exact,proportion);phase="feedback";render();$("submitBtn").hidden=true;$("undoBtn").hidden=true;$("beginTrialBtn").hidden=true;$("message").textContent="Recorded";$("feedback").textContent=task==="simultaneous"?`${hits}/${item.load} locations`:`${hits}/${item.load} locations · ${correctPositions} in order`;timers.push(setTimeout(()=>{if(phase==="feedback")nextTrial()},450))}
+function advance(exact,proportion){
+  // Reversible threshold staircase within each grid: two consecutive exact
+  // successes advance one load; any non-exact response steps down one load.
+  // Grid-size progression itself remains one-way and uses overlapping bridges.
+  if(exact){
+    sequentialGoodStreak++;
+    if(sequentialGoodStreak>=2){sequentialGoodStreak=0;failures=0;load++}
+  }else{
+    sequentialGoodStreak=0;failures++;
+    load=Math.max(CONFIG.gridMin[gridSize],load-1);
+  }
+  if(gridSize===3&&load>CONFIG.gridMax[3]){gridSize=4;load=CONFIG.bridgeLoad[4]}
+  else if(gridSize===4&&load>CONFIG.gridMax[4]){gridSize=5;load=CONFIG.bridgeLoad[5]}
+  load=Math.max(CONFIG.gridMin[gridSize],Math.min(load,CONFIG.gridMax[gridSize]));
+}
+function submit(){if(phase!=="recall"||submitLocked)return;submitLocked=true;const item=current,targetSet=new Set(item.targets),hits=selected.filter(v=>targetSet.has(v)).length,falseSelections=selected.length-hits,correctPositions=selected.reduce((sum,v,i)=>sum+(item.targets[i]===v?1:0),0),exact=task==="simultaneous"?(hits===item.load&&falseSelections===0):(correctPositions===item.load&&selected.length===item.load),proportion=task==="simultaneous"?hits/item.load:correctPositions/item.load,prev=results[task].at(-1),transitionTrial=!!prev&&prev.gridSize!==item.gridSize;const record={trial:results[task].length+1,itemId:item.id,condition:task,gridSize:item.gridSize,load:item.load,targets:[...item.targets],responses:[...selected],hits,omissions:item.load-hits,falseSelections,locationProportion:hits/item.load,correctSerialPositions:task==="sequential"?correctPositions:null,orderProportion:task==="sequential"?correctPositions/item.load:null,exact,adaptiveStage:"exploratory",transitionTrial,spatialMetrics:item.spatialMetrics||null,intendedPresentationMs:task==="simultaneous"?CONFIG.showMs:null,observedPresentationMs:observedMs,sequenceOnMs:task==="sequential"?CONFIG.sequenceOnMs:null,sequenceGapMs:task==="sequential"?CONFIG.sequenceGapMs:null,responseTimeMs:Math.round(performance.now()-recallAt),timestamp:new Date().toISOString()};results[task].push(record);
+  if(exact){
+    const prior=highestSuccessful[task];
+    if(!prior||item.gridSize>prior.gridSize||(item.gridSize===prior.gridSize&&item.load>prior.load))
+      highestSuccessful[task]={gridSize:item.gridSize,load:item.load,trial:record.trial};
+  }
+  updateBayesianShadow(task,record);
+  const before={gridSize,load};advance(exact,proportion);
+  record.adaptiveDecision={response:exact?"exact":"non-exact",nextGridSize:gridSize,nextLoad:load,rule:exact?"two consecutive exact responses to advance":"one step down after non-exact response"};
+  thresholdHistory[task].push({trial:record.trial,gridSize:item.gridSize,load:item.load,exact,nextGridSize:gridSize,nextLoad:load});phase="feedback";render();$("submitBtn").hidden=true;$("undoBtn").hidden=true;$("beginTrialBtn").hidden=true;$("message").textContent="Recorded";$("feedback").textContent=task==="simultaneous"?`${hits}/${item.load} locations`:`${hits}/${item.load} locations · ${correctPositions} in order`;timers.push(setTimeout(()=>{if(phase==="feedback")nextTrial()},450))}
 function completeTask(){
   clearTimers();phase="transition";$("assessment").hidden=true;leaveAssessmentLayout();
   if(task==="simultaneous"&&runMode==="full")$("transition").hidden=false;
   else finish();
 }
-async function sendResults(){if(submissionStarted)return;submissionStarted=true;const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,runMode,sessionTrialLimit,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},bayesianShadow:bayesHistory,displayInterruptions:[...displayInterruptions],note:"Exploratory pilot data; not calibrated or normed."};$("uploadStatus").textContent="Submitting results…";try{await fetch(CONFIG.receiverUrl,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),keepalive:true});$("uploadStatus").textContent="Submission request sent. Verify receipt in the research spreadsheet."}catch(e){$("uploadStatus").textContent="Submission could not be confirmed. Download the JSON backup.";console.error(e)}}
-function finish(){$("transition").hidden=true;$("results").hidden=false;const a=results.simultaneous,b=results.sequential;$("summary").textContent=`${runMode==="demo-simultaneous"?"Simultaneous-only session":runMode==="demo-sequential"?"Sequential-only session":"Full assessment"} · Simultaneous ${a.filter(x=>x.exact).length}/${a.length} · Sequential ${b.filter(x=>x.exact).length}/${b.length}`;sendResults()}
-function download(){const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,runMode,sessionTrialLimit,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},bayesianShadow:bayesHistory,displayInterruptions:[...displayInterruptions],note:"Exploratory pilot data; not calibrated or normed."};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`${participant}_VSWM_${sessionId}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+async function sendResults(){if(submissionStarted)return;submissionStarted=true;const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,runMode,sessionTrialLimit,highestSuccessful,thresholdHistory,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},bayesianShadow:bayesHistory,displayInterruptions:[...displayInterruptions],note:"Exploratory pilot data; not calibrated or normed."};$("uploadStatus").textContent="Submitting results…";try{await fetch(CONFIG.receiverUrl,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),keepalive:true});$("uploadStatus").textContent="Submission request sent. Verify receipt in the research spreadsheet."}catch(e){$("uploadStatus").textContent="Submission could not be confirmed. Download the JSON backup.";console.error(e)}}
+function finish(){$("transition").hidden=true;$("results").hidden=false;const a=results.simultaneous,b=results.sequential;$("summary").textContent=`${runMode.startsWith("demo")?"Demonstration":"Full assessment"} · Simultaneous ${a.filter(x=>x.exact).length}/${a.length} · Sequential ${b.filter(x=>x.exact).length}/${b.length}`;sendResults()}
+function download(){const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,runMode,sessionTrialLimit,highestSuccessful,thresholdHistory,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},bayesianShadow:bayesHistory,displayInterruptions:[...displayInterruptions],note:"Exploratory pilot data; not calibrated or normed."};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`${participant}_VSWM_${sessionId}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 
 // Top-aligned, pixel-locked board. Toolbar/keyboard height notifications do not
 // recenter the board. A genuine resize that no longer fits interrupts an exposed
 // trial instead of changing the remembered coordinates while it is being answered.
 
 // Bayesian shadow estimator. It is deliberately separate from the adaptive controller.
-const BAYES={a:1.0,priorMean:0,priorSd:1.5,thetaMin:-4,thetaMax:4,step:0.05};
-let bayesState={simultaneous:null,sequential:null},bayesHistory=[];
+const BAYES={a:1.0,priorMean:0,priorSd:1.5,thetaMin:-4,thetaMax:4,step:0.05,lapse:0.05,guess:0.02};
+let bayesState={simultaneous:null,sequential:null},bayesHistory=[],bayesPreviousPrior=null;
 function normalDensity(x,m,s){return Math.exp(-0.5*Math.pow((x-m)/s,2))/(s*Math.sqrt(2*Math.PI))}
 function logistic(x){if(x>=0){const z=Math.exp(-x);return 1/(1+z)}const z=Math.exp(x);return z/(1+z)}
 function makeBayesPrior(){
@@ -6446,16 +6469,17 @@ function provisionalItemDifficulty(r){
 
 function updateBayesianShadow(condition,record){
   const prior=bayesState[condition]||makeBayesPrior(),pm=bayesMoments(prior);
+  bayesPreviousPrior=prior;
   const difficulty=provisionalItemDifficulty(record),b=difficulty.b,a=BAYES.a;
-  const pCorrect=prior.xs.map(theta=>logistic(a*(theta-b)));
+  const pCorrect=prior.xs.map(theta=>BAYES.guess+(1-BAYES.guess-BAYES.lapse)*logistic(a*(theta-b)));
   const likelihood=pCorrect.map(p=>record.exact?p:1-p);
   const raw=prior.p.map((p,i)=>p*likelihood[i]),evidence=raw.reduce((s,v)=>s+v,0);
   const posterior={xs:prior.xs,p:raw.map(v=>v/evidence)},qm=bayesMoments(posterior);
-  const pAtMean=logistic(a*(pm.mean-b)),observedLikelihood=record.exact?pAtMean:1-pAtMean;
+  const pAtMean=BAYES.guess+(1-BAYES.guess-BAYES.lapse)*logistic(a*(pm.mean-b)),observedLikelihood=record.exact?pAtMean:1-pAtMean;
   const itemInformation=a*a*pAtMean*(1-pAtMean);
   bayesState[condition]=posterior;
-  const u={condition,trial:record.trial,gridSize:record.gridSize,load:record.load,exact:record.exact,a,b,difficultySource:difficulty.source,
-    priorMean:pm.mean,priorSd:pm.sd,pCorrectAtPriorMean:pAtMean,
+  const u={condition,trial:record.trial,gridSize:record.gridSize,load:record.load,exact:record.exact,a,b,lapse:BAYES.lapse,guess:BAYES.guess,difficultySource:difficulty.source,
+    priorMean:pm.mean,priorSd:pm.sd,pCorrectAtPriorMean:pAtMean,itemInformationAtPriorMean:itemInformation,
     observedLikelihoodAtPriorMean:observedLikelihood,evidence,posteriorMean:qm.mean,posteriorSd:qm.sd};
   bayesHistory.push(u);record.bayes={...u};renderBayesianShadow(u,posterior);
 }
@@ -6467,8 +6491,11 @@ function renderBayesianShadow(u,d){
   $("bayesPostMean").textContent=f(u.posteriorMean);$("bayesPostSd").textContent=f(u.posteriorSd);
   $("bayesTrialLine").textContent=`${u.condition} · trial ${u.trial} · ${u.gridSize}×${u.gridSize} · ${u.load} locations · ${u.exact?"exact success":"non-exact response"}.`;
   $("bayesEvidenceLine").textContent=`Normalising constant (marginal probability of observed response): ${f(u.evidence)}.`;
-  const plot=$("bayesPlot");plot.replaceChildren();const max=Math.max(...d.p);
-  d.p.forEach((v,i)=>{const bar=document.createElement("span");bar.style.height=`${Math.max(2,100*v/max)}%`;bar.title=`θ ${d.xs[i].toFixed(2)}: ${v.toFixed(5)}`;plot.appendChild(bar)});
+  const prior=bayesHistory.length===1?makeBayesPrior():bayesPreviousPrior;
+  const max=Math.max(...d.p,...(prior?.p||[]));
+  const pathFor=dist=>dist.p.map((v,i)=>`${i===0?"M":"L"} ${(i/(dist.p.length-1)*300+10).toFixed(1)} ${(100-(v/max)*88+5).toFixed(1)}`).join(" ");
+  $("bayesPriorPath").setAttribute("d",pathFor(prior||makeBayesPrior()));
+  $("bayesPosteriorPath").setAttribute("d",pathFor(d));
 }
 function setBayesianPanel(open){
   $("bayesPanel").hidden=!open;$("bayesToggle").setAttribute("aria-expanded",String(open));
