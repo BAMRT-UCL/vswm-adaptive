@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f5f7fa">
-  <title>Spatial Memory · v0.9.1 Threshold + Bayesian</title>
+  <title>Spatial Memory · v0.9.2 Adult-reference probabilities</title>
   <style>
 /* VSWM 0.7.3 — stable top-aligned stage and independent touch activation. */
 *{box-sizing:border-box}
@@ -87,12 +87,12 @@ body.task-active #bayesToggle{display:block}
       <p>Press <strong>Start trial</strong> when you are ready for each pattern.</p>
     </div>
     <div class="launch-options">
-      <button id="demoSimBtn" disabled>Simultaneous only · 16 trials</button>
-      <button id="demoSeqBtn" disabled>Sequential only · 16 trials</button>
+      <button id="demoSimBtn" disabled>Demonstrate simultaneous · 4 trials</button>
+      <button id="demoSeqBtn" disabled>Demonstrate sequential · 4 trials</button>
       <button id="fullAssessmentBtn" disabled>Full assessment · 16 + 16 trials</button>
     </div>
     <p id="setupError" role="alert"></p>
-    <p class="version-label">v0.9.1 · Threshold + Bayesian</p>
+    <p class="version-label">v0.9.2 · Adult-reference probabilities</p>
   </section>
 
   <section id="transition" hidden>
@@ -130,7 +130,7 @@ body.task-active #bayesToggle{display:block}
     <p id="uploadStatus" role="status"></p>
     <button id="downloadBtn">Download data backup</button>
     <button id="restartBtn">Finish</button>
-    <p class="version-label">v0.9.1 · Threshold + Bayesian</p>
+    <p class="version-label">v0.9.2 · Adult-reference probabilities</p>
   </section>
 </main>
 
@@ -153,10 +153,10 @@ body.task-active #bayesToggle{display:block}
   <h3>Posterior distribution</h3><svg id="bayesPlot" viewBox="0 0 320 110" role="img" aria-label="Prior and posterior density over ability"><path id="bayesPriorPath" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 3"/><path id="bayesPosteriorPath" fill="none" stroke="#2563eb" stroke-width="2.5"/></svg><div class="bayes-legend"><span>Prior</span><span>Posterior</span></div>
   <p class="bayes-note">Horizontal axis: θ from −4 to +4. Bars show relative posterior density.</p>
   <h3>Adult-reference anchors · provisional</h3>
-  <p class="bayes-note">Simultaneous: 3×3 / 2 locations → θ = −1 reference; 4×4 / 4 → θ = 0 reference; 5×5 / 7 → θ = +1 reference. These are pilot hypotheses, not population norms. Sequential anchors are not yet specified.</p>
+  <p class="bayes-note">θ = 0 is the provisional average-adult reference. Simultaneous item probabilities at θ = 0: 3×3 loads 2–5 = 99%, 98%, 95%, 85%; 4×4 loads 4–6 = 95%, 80%, 60%; 5×5 loads 6–7 = 65%, 50%. Other loads are extrapolated on the logit scale. These are hypotheses, not norms. Sequential parameters remain provisional.</p>
   <h3>Latest update</h3><p id="bayesTrialLine">No response recorded yet.</p><p id="bayesEvidenceLine" class="bayes-note">The model starts with a Normal(0, 1.5²) prior.</p>
   <h3>Provisional assumptions</h3>
-  <p class="bayes-note">Discrimination is fixed at a = 1.00, with a provisional 5% lapse and 2% lower response floor. Simultaneous reference anchors: 3×3/2 locations b = −1; 4×4/4 locations b = 0; 5×5/7 locations b = +1. Other combinations use a legacy provisional fallback and are not calibrated. Sequential difficulty remains provisional pending separate reference anchors.</p>
+  <p class="bayes-note">Discrimination is fixed at a = 1.00, with a provisional 5% lapse and 2% lower response floor. Simultaneous difficulty b is derived from a provisional success-probability schedule at θ = 0 (average-adult reference), with interpolation/extrapolation on the logit scale. Sequential difficulty remains provisional pending separate calibration.</p>
   <p class="bayes-note">The posterior uses exact versus non-exact responses with provisional lapse/guess floors. The threshold controller separately uses repeated exact responses. Location accuracy, omissions, false selections and serial-position scores remain available separately for later partial-credit modelling.</p>
   <p class="bayes-note">Simultaneous and sequential conditions have separate posterior distributions. The Bayesian posterior is descriptive; the threshold controller determines the next trial.</p>
 </aside>
@@ -6307,7 +6307,7 @@ body.task-active #bayesToggle{display:block}
 "use strict";
 // VSWM v0.8.0: v0.7.3 task plus researcher-only Bayesian shadow estimator.
 // Layout and touch-input repair. Adaptive rules, stimuli, timings and receiver are unchanged.
-const CONFIG={version:"0.9.1-threshold-bayesian",showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3,gridMin:{3:2,4:3,5:5},gridMax:{3:5,4:8,5:12},bridgeLoad:{4:4,5:6},receiverUrl:"https://script.google.com/macros/s/AKfycbyeYk7Y6JLqELCKRbw3aNVgiqd_uCpqlUgRJ2Mj3oNU5ImZROj62hN0EeBkolFxB1LH/exec"};
+const CONFIG={version:"0.9.2-adult-reference-probabilities",showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3,gridMin:{3:2,4:3,5:5},gridMax:{3:5,4:8,5:12},bridgeLoad:{4:4,5:6},receiverUrl:"https://script.google.com/macros/s/AKfycbyeYk7Y6JLqELCKRbw3aNVgiqd_uCpqlUgRJ2Mj3oNU5ImZROj62hN0EeBkolFxB1LH/exec"};
 const $=id=>document.getElementById(id);let bank=[],used=new Set(),results={simultaneous:[],sequential:[]};let participant="",yearGroup="",sessionId="",task="simultaneous",runMode="full",sessionTrialLimit=16,gridSize=3,load=2,phase="setup",highestSuccessful={simultaneous:null,sequential:null},thresholdHistory={simultaneous:[],sequential:[]},current=null,selected=[],startAt=0,recallAt=0,observedMs=0,timers=[],sequentialGoodStreak=0,failures=0,submissionStarted=false,submitLocked=false;
 const grid=$("grid");const pause=ms=>new Promise(resolve=>{const t=setTimeout(resolve,ms);timers.push(t)});function clearTimers(){for(const t of timers)clearTimeout(t);timers=[]}function cells(){return [...grid.children]}
 // Keep the actual button elements alive throughout a trial. Touch/pen input
@@ -6376,7 +6376,7 @@ function start(mode){
   if(!/^[A-Za-z0-9_-]{2,40}$/.test(participant))return alert("Use 2–40 letters, numbers, underscores or hyphens.");
   sessionId=`vswm-${Date.now()}`;runMode=mode;
   const demo=mode==="demo-simultaneous"||mode==="demo-sequential";
-  sessionTrialLimit=16;
+  sessionTrialLimit=demo?4:16;
   results={simultaneous:[],sequential:[]};highestSuccessful={simultaneous:null,sequential:null};thresholdHistory={simultaneous:[],sequential:[]};displayInterruptions=[];submissionStarted=false;
   bayesState={simultaneous:makeBayesPrior(),sequential:makeBayesPrior()};bayesHistory=[];
   setBayesianPanel(false);$("setup").hidden=true;$("results").hidden=true;
@@ -6451,20 +6451,46 @@ const ADULT_REFERENCE_ANCHORS = {
     "5x5|7":  1.0
   }
 };
+
+// Development response-probability schedule for SIMULTANEOUS memory.
+// Each value is the hypothesised P(exact | theta=0), where theta=0 is
+// the provisional average-adult reference. Missing loads are interpolated
+// or extrapolated linearly on the logit scale within each grid.
+// The lapse/guess floors are accounted for when converting probability to b.
+const ADULT_REFERENCE_SUCCESS = {
+  3: {2:0.99, 3:0.98, 4:0.95, 5:0.85},
+  4: {4:0.95, 5:0.80, 6:0.60},
+  5: {6:0.65, 7:0.50}
+};
+function logit(p){return Math.log(p/(1-p))}
+function invLogit(x){return 1/(1+Math.exp(-x))}
+function referenceSuccessProbability(gridSize,load){
+  const row=ADULT_REFERENCE_SUCCESS[gridSize];
+  if(!row) return null;
+  const xs=Object.keys(row).map(Number).sort((a,b)=>a-b);
+  if(row[load]!==undefined) return row[load];
+  let lo,hi;
+  if(load<xs[0]){lo=xs[0];hi=xs[1]}
+  else if(load>xs[xs.length-1]){lo=xs[xs.length-2];hi=xs[xs.length-1]}
+  else {for(let i=0;i<xs.length-1;i++){if(load>xs[i]&&load<xs[i+1]){lo=xs[i];hi=xs[i+1];break}}}
+  const slope=(logit(row[hi])-logit(row[lo]))/(hi-lo);
+  return invLogit(logit(row[lo])+slope*(load-lo));
+}
 function provisionalItemDifficulty(r){
-  // Provisional simultaneous scale anchored to the agreed adult-reference hypotheses.
-  // Intermediate loads are linearly interpolated within each grid.
   if(r.condition==="simultaneous"){
-    const anchors={
-      3:{load:2,b:-1.0,slope:0.50},
-      4:{load:4,b:0.0,slope:1/3},
-      5:{load:7,b:1.0,slope:1/3}
-    };
-    const g=anchors[r.gridSize];
-    if(g) return {b:g.b+(r.load-g.load)*g.slope,source:"adult-anchor-interpolation"};
+    const targetP=referenceSuccessProbability(r.gridSize,r.load);
+    if(targetP!==null){
+      // Actual response curve includes guess and lapse floors:
+      // P = guess + (1-guess-lapse)*logistic(a*(theta-b)).
+      // Solve for b so P(exact | theta=0) equals the target probability.
+      const adjusted=(targetP-BAYES.guess)/(1-BAYES.guess-BAYES.lapse);
+      const safeP=Math.max(0.0001,Math.min(0.9999,adjusted));
+      const b=-logit(safeP)/BAYES.a;
+      return {b,source:"adult-reference-success-schedule",targetSuccessAtTheta0:targetP};
+    }
   }
-  // Sequential scale remains provisional until separate reference anchors are established.
-  return {b:0.40*(r.load-4)+0.25*(r.gridSize-3),source:"sequential-provisional-fallback"};
+  // Sequential item difficulties remain provisional pending separate calibration.
+  return {b:0.40*(r.load-4)+0.25*(r.gridSize-3),source:"sequential-provisional-fallback",targetSuccessAtTheta0:null};
 }
 
 function updateBayesianShadow(condition,record){
@@ -6485,8 +6511,8 @@ function updateBayesianShadow(condition,record){
 }
 function renderBayesianShadow(u,d){
   const f=x=>Number(x).toFixed(3);
-  $("bayesModelLine").textContent=`a = ${f(u.a)} · b = ${f(u.b)} · ${u.difficultySource==="adult-anchor-interpolation"?"adult-anchor interpolation":"sequential provisional fallback"} · response = ${u.exact?"exact":"non-exact"}`;
-  $("bayesUpdateLine").textContent=`At prior mean, P(exact) = ${f(u.pCorrectAtPriorMean)}. Likelihood of observed response there = ${f(u.observedLikelihoodAtPriorMean)}. At each θ: posterior ∝ prior × likelihood, then normalise. Item information at prior mean = ${f(u.itemInformationAtPriorMean)}.`;
+  $("bayesModelLine").textContent=`a = ${f(u.a)} · b = ${f(u.b)} · ${u.difficultySource==="adult-reference-success-schedule"?"adult-reference probability schedule":"sequential provisional fallback"} · response = ${u.exact?"exact":"non-exact"}`;
+  $("bayesUpdateLine").textContent=`Target P(exact | θ=0) = ${u.targetSuccessAtTheta0==null?"not calibrated":f(u.targetSuccessAtTheta0)}. Current prior-mean P(exact) = ${f(u.pCorrectAtPriorMean)}. Likelihood of observed response there = ${f(u.observedLikelihoodAtPriorMean)}. At each θ: posterior ∝ prior × likelihood, then normalise. Item information at prior mean = ${f(u.itemInformationAtPriorMean)}.`;
   $("bayesPriorMean").textContent=f(u.priorMean);$("bayesPriorSd").textContent=f(u.priorSd);
   $("bayesPostMean").textContent=f(u.posteriorMean);$("bayesPostSd").textContent=f(u.posteriorSd);
   $("bayesTrialLine").textContent=`${u.condition} · trial ${u.trial} · ${u.gridSize}×${u.gridSize} · ${u.load} locations · ${u.exact?"exact success":"non-exact response"}.`;
