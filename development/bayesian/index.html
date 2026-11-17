@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f5f7fa">
-  <title>Spatial Memory · v0.8.2 Adult Reference Anchors</title>
+  <title>Spatial Memory · v0.8.3 Independent Demonstrations</title>
   <style>
 /* VSWM 0.7.3 — stable top-aligned stage and independent touch activation. */
 *{box-sizing:border-box}
@@ -61,6 +61,11 @@ body.task-active main{min-height:0}
 #bayesPanel .bayes-note{font-size:11px;color:#58677a}
 @media(max-width:600px){#bayesPanel{top:auto;bottom:62px;right:8px;width:calc(100vw - 16px);max-height:52vh}#bayesToggle{right:8px;bottom:8px}}
 
+
+.launch-options{display:flex;flex-direction:column;align-items:center;gap:5px;margin:12px auto}
+.launch-options button{width:min(360px,100%);margin:2px}
+#bayesToggle{display:none}
+body.task-active #bayesToggle{display:block}
 </style>
   
 </head>
@@ -81,9 +86,13 @@ body.task-active main{min-height:0}
       <p>Watch the blue squares. When they disappear, select the same squares in any order, then press <strong>Submit</strong>.</p>
       <p>Press <strong>Start trial</strong> when you are ready for each pattern.</p>
     </div>
-    <button id="startBtn" disabled>Start Task 1</button>
+    <div class="launch-options">
+      <button id="demoSimBtn" disabled>Demonstrate simultaneous · 4 trials</button>
+      <button id="demoSeqBtn" disabled>Demonstrate sequential · 4 trials</button>
+      <button id="fullAssessmentBtn" disabled>Full assessment · 16 + 16 trials</button>
+    </div>
     <p id="setupError" role="alert"></p>
-    <p class="version-label">v0.8.2 · Adult-reference development</p>
+    <p class="version-label">v0.8.3 · Bayesian development</p>
   </section>
 
   <section id="transition" hidden>
@@ -121,7 +130,7 @@ body.task-active main{min-height:0}
     <p id="uploadStatus" role="status"></p>
     <button id="downloadBtn">Download data backup</button>
     <button id="restartBtn">Finish</button>
-    <p class="version-label">v0.8.2 · Adult-reference development</p>
+    <p class="version-label">v0.8.3 · Bayesian development</p>
   </section>
 </main>
 
@@ -6298,8 +6307,8 @@ body.task-active main{min-height:0}
 "use strict";
 // VSWM v0.8.0: v0.7.3 task plus researcher-only Bayesian shadow estimator.
 // Layout and touch-input repair. Adaptive rules, stimuli, timings and receiver are unchanged.
-const CONFIG={version:"0.8.2-adult-anchor-shadow",showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3,gridMin:{3:2,4:3,5:5},gridMax:{3:5,4:8,5:12},bridgeLoad:{4:4,5:6},receiverUrl:"https://script.google.com/macros/s/AKfycbyeYk7Y6JLqELCKRbw3aNVgiqd_uCpqlUgRJ2Mj3oNU5ImZROj62hN0EeBkolFxB1LH/exec"};
-const $=id=>document.getElementById(id);let bank=[],used=new Set(),results={simultaneous:[],sequential:[]};let participant="",yearGroup="",sessionId="",task="simultaneous",gridSize=3,load=2,phase="setup",current=null,selected=[],startAt=0,recallAt=0,observedMs=0,timers=[],sequentialGoodStreak=0,failures=0,submissionStarted=false,submitLocked=false;
+const CONFIG={version:"0.8.3-adult-anchor-shadow",showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3,gridMin:{3:2,4:3,5:5},gridMax:{3:5,4:8,5:12},bridgeLoad:{4:4,5:6},receiverUrl:"https://script.google.com/macros/s/AKfycbyeYk7Y6JLqELCKRbw3aNVgiqd_uCpqlUgRJ2Mj3oNU5ImZROj62hN0EeBkolFxB1LH/exec"};
+const $=id=>document.getElementById(id);let bank=[],used=new Set(),results={simultaneous:[],sequential:[]};let participant="",yearGroup="",sessionId="",task="simultaneous",runMode="full",sessionTrialLimit=16,gridSize=3,load=2,phase="setup",current=null,selected=[],startAt=0,recallAt=0,observedMs=0,timers=[],sequentialGoodStreak=0,failures=0,submissionStarted=false,submitLocked=false;
 const grid=$("grid");const pause=ms=>new Promise(resolve=>{const t=setTimeout(resolve,ms);timers.push(t)});function clearTimers(){for(const t of timers)clearTimeout(t);timers=[]}function cells(){return [...grid.children]}
 // Keep the actual button elements alive throughout a trial. Touch/pen input
 // is handled once on release; native clicks remain available for mouse/keyboard.
@@ -6354,24 +6363,40 @@ function validate(items){if(!Array.isArray(items)||!items.length)throw Error("Em
 async function init(){
   try {
     bank=validate(JSON.parse($("itemBank").textContent));
-    $("startBtn").disabled=false;
+    $("demoSimBtn").disabled=false;$("demoSeqBtn").disabled=false;$("fullAssessmentBtn").disabled=false;
   } catch(e) {
     $("setupError").textContent=`The assessment could not load: ${e.message}`;
   }
 }
 function resetTask(which){task=which;used=new Set();gridSize=3;load=CONFIG.initialLoad;sequentialGoodStreak=0;failures=0;phase="ready";$("taskTitle").textContent=which==="simultaneous"?"Simultaneous":"Sequential";$("assessment").hidden=false;$("transition").hidden=true;drawGrid(gridSize);enterAssessmentLayout();nextTrial()}
-function start(){if(document.activeElement instanceof HTMLElement)document.activeElement.blur();participant=$("participantId").value.trim();yearGroup=$("yearGroup").value;if(!participant||!yearGroup)return alert("Enter participant code and year group.");if(!/^[A-Za-z0-9_-]{2,40}$/.test(participant))return alert("Use 2–40 letters, numbers, underscores or hyphens.");sessionId=`vswm-${Date.now()}`;results={simultaneous:[],sequential:[]};displayInterruptions=[];submissionStarted=false;bayesState={simultaneous:makeBayesPrior(),sequential:makeBayesPrior()};bayesHistory=[];setBayesianPanel(false);$("setup").hidden=true;$("results").hidden=true;resetTask("simultaneous")}
+function start(mode){
+  if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
+  participant=$("participantId").value.trim();yearGroup=$("yearGroup").value;
+  if(!participant||!yearGroup)return alert("Enter participant code and year group.");
+  if(!/^[A-Za-z0-9_-]{2,40}$/.test(participant))return alert("Use 2–40 letters, numbers, underscores or hyphens.");
+  sessionId=`vswm-${Date.now()}`;runMode=mode;
+  const demo=mode==="demo-simultaneous"||mode==="demo-sequential";
+  sessionTrialLimit=demo?4:16;
+  results={simultaneous:[],sequential:[]};displayInterruptions=[];submissionStarted=false;
+  bayesState={simultaneous:makeBayesPrior(),sequential:makeBayesPrior()};bayesHistory=[];
+  setBayesianPanel(false);$("setup").hidden=true;$("results").hidden=true;
+  resetTask(mode==="demo-sequential"?"sequential":"simultaneous");
+}
 function pickItem(){let pool=bank.filter(x=>!used.has(x.id)&&x.gridSize===gridSize&&x.load===load);if(!pool.length)pool=bank.filter(x=>x.gridSize===gridSize&&x.load===load);if(!pool.length)return null;return pool[Math.floor(Math.random()*pool.length)]}
-function nextTrial(){const h=results[task];if(h.length>=CONFIG.trialsPerTask)return completeTask();current=pickItem();if(!current){completeTask();return}used.add(current.id);selected=[];submitLocked=false;phase="ready";$("feedback").textContent="";$("submitBtn").hidden=true;$("undoBtn").hidden=true;$("beginTrialBtn").hidden=false;$("progress").textContent=`${h.length+1}/${CONFIG.trialsPerTask}`;$("message").textContent=`${gridSize}×${gridSize} · ${load} locations`;if(cells().length!==gridSize*gridSize)drawGrid(gridSize);clearTimers();render()}
+function nextTrial(){const h=results[task];if(h.length>=sessionTrialLimit)return completeTask();current=pickItem();if(!current){completeTask();return}used.add(current.id);selected=[];submitLocked=false;phase="ready";$("feedback").textContent="";$("submitBtn").hidden=true;$("undoBtn").hidden=true;$("beginTrialBtn").hidden=false;$("progress").textContent=`${h.length+1}/${sessionTrialLimit}`;$("message").textContent=`${gridSize}×${gridSize} · ${load} locations`;if(cells().length!==gridSize*gridSize)drawGrid(gridSize);clearTimers();render()}
 function beginTrial(){if(phase!=="ready"||!current)return;phase="showing";$("beginTrialBtn").hidden=true;$("message").textContent=task==="simultaneous"?"Remember the blue squares":"Remember the order";startAt=performance.now();render();if(task==="simultaneous")timers.push(setTimeout(()=>beginRecall(),CONFIG.showMs));else runSequence(current)}
 async function runSequence(item){for(const pos of item.targets){if(phase!=="showing")return;render(pos);await pause(CONFIG.sequenceOnMs);if(phase!=="showing")return;render(-1);await pause(CONFIG.sequenceGapMs)}if(phase==="showing")beginRecall()}
 function beginRecall(){observedMs=Math.round(performance.now()-startAt);recallAt=performance.now();phase="recall";$("message").textContent=task==="simultaneous"?"Select the remembered locations":"Tap locations in presentation order";$("submitBtn").hidden=false;render()}
 function advance(exact,proportion){if(task==="sequential"){if(exact){sequentialGoodStreak++;if(sequentialGoodStreak>=2){sequentialGoodStreak=0;failures=0;load++}}else{sequentialGoodStreak=0;failures++;if(proportion<0.6)load=Math.max(CONFIG.gridMin[gridSize],load-1)}}else{if(exact){failures=0;load++}else{failures++;if(proportion<0.6)load=Math.max(CONFIG.gridMin[gridSize],load-1)}}if(gridSize===3&&load>CONFIG.gridMax[3]){gridSize=4;load=CONFIG.bridgeLoad[4]}else if(gridSize===4&&load>CONFIG.gridMax[4]){gridSize=5;load=CONFIG.bridgeLoad[5]}load=Math.max(CONFIG.gridMin[gridSize],Math.min(load,CONFIG.gridMax[gridSize]))}
 function submit(){if(phase!=="recall"||submitLocked)return;submitLocked=true;const item=current,targetSet=new Set(item.targets),hits=selected.filter(v=>targetSet.has(v)).length,falseSelections=selected.length-hits,correctPositions=selected.reduce((sum,v,i)=>sum+(item.targets[i]===v?1:0),0),exact=task==="simultaneous"?(hits===item.load&&falseSelections===0):(correctPositions===item.load&&selected.length===item.load),proportion=task==="simultaneous"?hits/item.load:correctPositions/item.load,prev=results[task].at(-1),transitionTrial=!!prev&&prev.gridSize!==item.gridSize;const record={trial:results[task].length+1,itemId:item.id,condition:task,gridSize:item.gridSize,load:item.load,targets:[...item.targets],responses:[...selected],hits,omissions:item.load-hits,falseSelections,locationProportion:hits/item.load,correctSerialPositions:task==="sequential"?correctPositions:null,orderProportion:task==="sequential"?correctPositions/item.load:null,exact,adaptiveStage:"exploratory",transitionTrial,spatialMetrics:item.spatialMetrics||null,intendedPresentationMs:task==="simultaneous"?CONFIG.showMs:null,observedPresentationMs:observedMs,sequenceOnMs:task==="sequential"?CONFIG.sequenceOnMs:null,sequenceGapMs:task==="sequential"?CONFIG.sequenceGapMs:null,responseTimeMs:Math.round(performance.now()-recallAt),timestamp:new Date().toISOString()};results[task].push(record);updateBayesianShadow(task,record);advance(exact,proportion);phase="feedback";render();$("submitBtn").hidden=true;$("undoBtn").hidden=true;$("beginTrialBtn").hidden=true;$("message").textContent="Recorded";$("feedback").textContent=task==="simultaneous"?`${hits}/${item.load} locations`:`${hits}/${item.load} locations · ${correctPositions} in order`;timers.push(setTimeout(()=>{if(phase==="feedback")nextTrial()},450))}
-function completeTask(){clearTimers();phase="transition";$("assessment").hidden=true;leaveAssessmentLayout();if(task==="simultaneous")$("transition").hidden=false;else finish()}
-async function sendResults(){if(submissionStarted)return;submissionStarted=true;const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},bayesianShadow:bayesHistory,displayInterruptions:[...displayInterruptions],note:"Exploratory pilot data; not calibrated or normed."};$("uploadStatus").textContent="Submitting results…";try{await fetch(CONFIG.receiverUrl,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),keepalive:true});$("uploadStatus").textContent="Submission request sent. Verify receipt in the research spreadsheet."}catch(e){$("uploadStatus").textContent="Submission could not be confirmed. Download the JSON backup.";console.error(e)}}
-function finish(){$("transition").hidden=true;$("results").hidden=false;const a=results.simultaneous,b=results.sequential;$("summary").textContent=`Simultaneous ${a.filter(x=>x.exact).length}/${a.length} · Sequential ${b.filter(x=>x.exact).length}/${b.length}`;sendResults()}
-function download(){const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},bayesianShadow:bayesHistory,displayInterruptions:[...displayInterruptions],note:"Exploratory pilot data; not calibrated or normed."};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`${participant}_VSWM_${sessionId}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function completeTask(){
+  clearTimers();phase="transition";$("assessment").hidden=true;leaveAssessmentLayout();
+  if(task==="simultaneous"&&runMode==="full")$("transition").hidden=false;
+  else finish();
+}
+async function sendResults(){if(submissionStarted)return;submissionStarted=true;const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,runMode,sessionTrialLimit,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},bayesianShadow:bayesHistory,displayInterruptions:[...displayInterruptions],note:"Exploratory pilot data; not calibrated or normed."};$("uploadStatus").textContent="Submitting results…";try{await fetch(CONFIG.receiverUrl,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),keepalive:true});$("uploadStatus").textContent="Submission request sent. Verify receipt in the research spreadsheet."}catch(e){$("uploadStatus").textContent="Submission could not be confirmed. Download the JSON backup.";console.error(e)}}
+function finish(){$("transition").hidden=true;$("results").hidden=false;const a=results.simultaneous,b=results.sequential;$("summary").textContent=`${runMode.startsWith("demo")?"Demonstration":"Full assessment"} · Simultaneous ${a.filter(x=>x.exact).length}/${a.length} · Sequential ${b.filter(x=>x.exact).length}/${b.length}`;sendResults()}
+function download(){const payload={version:CONFIG.version,task:"VSWM-two-stage",participant,yearGroup,sessionId,runMode,sessionTrialLimit,configuration:CONFIG,conditions:{simultaneous:results.simultaneous,sequential:results.sequential},bayesianShadow:bayesHistory,displayInterruptions:[...displayInterruptions],note:"Exploratory pilot data; not calibrated or normed."};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`${participant}_VSWM_${sessionId}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 
 // Top-aligned, pixel-locked board. Toolbar/keyboard height notifications do not
 // recenter the board. A genuine resize that no longer fits interrupts an exposed
@@ -6404,11 +6429,19 @@ const ADULT_REFERENCE_ANCHORS = {
   }
 };
 function provisionalItemDifficulty(r){
-  const key=`${r.gridSize}x${r.gridSize}|${r.load}`;
-  const anchor=ADULT_REFERENCE_ANCHORS[r.condition]?.[key];
-  if(anchor!==undefined) return {b:anchor,source:"adult-reference-anchor"};
-  // Not yet calibrated: retain legacy demonstration heuristic for non-anchor items.
-  return {b:0.40*(r.load-4)+0.25*(r.gridSize-3),source:"legacy-provisional-fallback"};
+  // Provisional simultaneous scale anchored to the agreed adult-reference hypotheses.
+  // Intermediate loads are linearly interpolated within each grid.
+  if(r.condition==="simultaneous"){
+    const anchors={
+      3:{load:2,b:-1.0,slope:0.50},
+      4:{load:4,b:0.0,slope:1/3},
+      5:{load:7,b:1.0,slope:1/3}
+    };
+    const g=anchors[r.gridSize];
+    if(g) return {b:g.b+(r.load-g.load)*g.slope,source:"adult-anchor-interpolation"};
+  }
+  // Sequential scale remains provisional until separate reference anchors are established.
+  return {b:0.40*(r.load-4)+0.25*(r.gridSize-3),source:"sequential-provisional-fallback"};
 }
 
 function updateBayesianShadow(condition,record){
@@ -6418,7 +6451,7 @@ function updateBayesianShadow(condition,record){
   const likelihood=pCorrect.map(p=>record.exact?p:1-p);
   const raw=prior.p.map((p,i)=>p*likelihood[i]),evidence=raw.reduce((s,v)=>s+v,0);
   const posterior={xs:prior.xs,p:raw.map(v=>v/evidence)},qm=bayesMoments(posterior);
-  const pAtMean=logistic(a*(pm.mean-b)),observedLikelihood=record.exact?pAtMean:1-pAtMean;
+  const pAtMean=logistic(a*(pm.mean-b)),observedLikelihood=record.exact?pAtMean:1-pAtMean;\n  const itemInformation=a*a*pAtMean*(1-pAtMean);
   bayesState[condition]=posterior;
   const u={condition,trial:record.trial,gridSize:record.gridSize,load:record.load,exact:record.exact,a,b,difficultySource:difficulty.source,
     priorMean:pm.mean,priorSd:pm.sd,pCorrectAtPriorMean:pAtMean,
@@ -6427,8 +6460,8 @@ function updateBayesianShadow(condition,record){
 }
 function renderBayesianShadow(u,d){
   const f=x=>Number(x).toFixed(3);
-  $("bayesModelLine").textContent=`a = ${f(u.a)} · b = ${f(u.b)} · ${u.difficultySource==="adult-reference-anchor"?"reference anchor":"provisional fallback"} · response = ${u.exact?"exact":"non-exact"}`;
-  $("bayesUpdateLine").textContent=`At prior mean, P(exact) = ${f(u.pCorrectAtPriorMean)}. Likelihood of observed response there = ${f(u.observedLikelihoodAtPriorMean)}. At each θ: posterior ∝ prior × likelihood, then normalise.`;
+  $("bayesModelLine").textContent=`a = ${f(u.a)} · b = ${f(u.b)} · ${u.difficultySource==="adult-anchor-interpolation"?"adult-anchor interpolation":"sequential provisional fallback"} · response = ${u.exact?"exact":"non-exact"}`;
+  $("bayesUpdateLine").textContent=`At prior mean, P(exact) = ${f(u.pCorrectAtPriorMean)}. Likelihood of observed response there = ${f(u.observedLikelihoodAtPriorMean)}. At each θ: posterior ∝ prior × likelihood, then normalise. Item information at prior mean = ${f(u.itemInformationAtPriorMean)}.`;
   $("bayesPriorMean").textContent=f(u.priorMean);$("bayesPriorSd").textContent=f(u.priorSd);
   $("bayesPostMean").textContent=f(u.posteriorMean);$("bayesPostSd").textContent=f(u.posteriorSd);
   $("bayesTrialLine").textContent=`${u.condition} · trial ${u.trial} · ${u.gridSize}×${u.gridSize} · ${u.load} locations · ${u.exact?"exact success":"non-exact response"}.`;
@@ -6518,7 +6551,7 @@ $("resumeDisplayBtn").addEventListener("click",()=>{
   nextTrial();
 });
 
-$("bayesToggle").addEventListener("click",()=>setBayesianPanel($("bayesPanel").hidden));$("bayesClose").addEventListener("click",()=>setBayesianPanel(false));$("startBtn").addEventListener("click",start);$("beginTrialBtn").addEventListener("click",beginTrial);$("continueBtn").addEventListener("click",()=>resetTask("sequential"));$("submitBtn").addEventListener("click",submit);$("undoBtn").addEventListener("click",()=>{selected.pop();render();$("undoBtn").hidden=!selected.length});$("downloadBtn").addEventListener("click",download);$("restartBtn").addEventListener("click",()=>{clearTimers();leaveAssessmentLayout();$("results").hidden=true;$("setup").hidden=false});init();
+$("bayesToggle").addEventListener("click",()=>setBayesianPanel($("bayesPanel").hidden));$("bayesClose").addEventListener("click",()=>setBayesianPanel(false));$("demoSimBtn").addEventListener("click",()=>start("demo-simultaneous"));$("demoSeqBtn").addEventListener("click",()=>start("demo-sequential"));$("fullAssessmentBtn").addEventListener("click",()=>start("full"));$("beginTrialBtn").addEventListener("click",beginTrial);$("continueBtn").addEventListener("click",()=>resetTask("sequential"));$("submitBtn").addEventListener("click",submit);$("undoBtn").addEventListener("click",()=>{selected.pop();render();$("undoBtn").hidden=!selected.length});$("downloadBtn").addEventListener("click",download);$("restartBtn").addEventListener("click",()=>{clearTimers();leaveAssessmentLayout();$("results").hidden=true;$("setup").hidden=false});init();
 
 </script>
 </body>
