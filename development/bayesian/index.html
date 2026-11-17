@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f5f7fa">
-  <title>Spatial Memory · v0.8.0 Bayesian Development</title>
+  <title>Spatial Memory · v0.8.2 Adult Reference Anchors</title>
   <style>
 /* VSWM 0.7.3 — stable top-aligned stage and independent touch activation. */
 *{box-sizing:border-box}
@@ -83,7 +83,7 @@ body.task-active main{min-height:0}
     </div>
     <button id="startBtn" disabled>Start Task 1</button>
     <p id="setupError" role="alert"></p>
-    <p class="version-label">v0.8.0 · Bayesian development</p>
+    <p class="version-label">v0.8.2 · Adult-reference development</p>
   </section>
 
   <section id="transition" hidden>
@@ -121,7 +121,7 @@ body.task-active main{min-height:0}
     <p id="uploadStatus" role="status"></p>
     <button id="downloadBtn">Download data backup</button>
     <button id="restartBtn">Finish</button>
-    <p class="version-label">v0.8.0 · Bayesian development</p>
+    <p class="version-label">v0.8.2 · Adult-reference development</p>
   </section>
 </main>
 
@@ -143,9 +143,11 @@ body.task-active main{min-height:0}
   </div>
   <h3>Posterior distribution</h3><div id="bayesPlot" role="img" aria-label="Posterior density across latent ability values"></div>
   <p class="bayes-note">Horizontal axis: θ from −4 to +4. Bars show relative posterior density.</p>
+  <h3>Adult-reference anchors · provisional</h3>
+  <p class="bayes-note">Simultaneous: 3×3 / 2 locations → θ = −1 reference; 4×4 / 4 → θ = 0 reference; 5×5 / 7 → θ = +1 reference. These are pilot hypotheses, not population norms. Sequential anchors are not yet specified.</p>
   <h3>Latest update</h3><p id="bayesTrialLine">No response recorded yet.</p><p id="bayesEvidenceLine" class="bayes-note">The model starts with a Normal(0, 1.5²) prior.</p>
   <h3>Provisional assumptions</h3>
-  <p class="bayes-note">Discrimination is fixed at a = 1.00. Provisional difficulty is b = 0.40(load − 4) + 0.25(grid size − 3). These coefficients are illustrative, not calibrated.</p>
+  <p class="bayes-note">Discrimination is fixed at a = 1.00. Simultaneous reference anchors: 3×3/2 locations b = −1; 4×4/4 locations b = 0; 5×5/7 locations b = +1. Other combinations use a legacy provisional fallback and are not calibrated. Sequential difficulty remains provisional pending separate reference anchors.</p>
   <p class="bayes-note">The first version uses exact versus non-exact response as a binary likelihood. Location accuracy, omissions, false selections and serial-position scores remain available separately for later partial-credit modelling.</p>
   <p class="bayes-note">Simultaneous and sequential conditions have separate posterior distributions. This shadow estimate does not change the existing adaptive algorithm.</p>
 </aside>
@@ -6296,7 +6298,7 @@ body.task-active main{min-height:0}
 "use strict";
 // VSWM v0.8.0: v0.7.3 task plus researcher-only Bayesian shadow estimator.
 // Layout and touch-input repair. Adaptive rules, stimuli, timings and receiver are unchanged.
-const CONFIG={version:"0.8.0-bayesian-shadow",showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3,gridMin:{3:2,4:3,5:5},gridMax:{3:5,4:8,5:12},bridgeLoad:{4:4,5:6},receiverUrl:"https://script.google.com/macros/s/AKfycbyeYk7Y6JLqELCKRbw3aNVgiqd_uCpqlUgRJ2Mj3oNU5ImZROj62hN0EeBkolFxB1LH/exec"};
+const CONFIG={version:"0.8.2-adult-anchor-shadow",showMs:1500,sequenceOnMs:850,sequenceGapMs:250,trialsPerTask:16,initialLoad:2,initialGrid:3,gridMin:{3:2,4:3,5:5},gridMax:{3:5,4:8,5:12},bridgeLoad:{4:4,5:6},receiverUrl:"https://script.google.com/macros/s/AKfycbyeYk7Y6JLqELCKRbw3aNVgiqd_uCpqlUgRJ2Mj3oNU5ImZROj62hN0EeBkolFxB1LH/exec"};
 const $=id=>document.getElementById(id);let bank=[],used=new Set(),results={simultaneous:[],sequential:[]};let participant="",yearGroup="",sessionId="",task="simultaneous",gridSize=3,load=2,phase="setup",current=null,selected=[],startAt=0,recallAt=0,observedMs=0,timers=[],sequentialGoodStreak=0,failures=0,submissionStarted=false,submitLocked=false;
 const grid=$("grid");const pause=ms=>new Promise(resolve=>{const t=setTimeout(resolve,ms);timers.push(t)});function clearTimers(){for(const t of timers)clearTimeout(t);timers=[]}function cells(){return [...grid.children]}
 // Keep the actual button elements alive throughout a trial. Touch/pen input
@@ -6390,24 +6392,42 @@ function bayesMoments(d){
   const variance=d.xs.reduce((s,x,i)=>s+Math.pow(x-mean,2)*d.p[i],0);
   return {mean,sd:Math.sqrt(variance)};
 }
-function provisionalItemDifficulty(r){return 0.40*(r.load-4)+0.25*(r.gridSize-3)}
+
+// Provisional adult-reference anchors for SIMULTANEOUS memory.
+// The anchors are hypotheses: b is the difficulty at which P(exact)=.50
+// for theta=0 when a=1.0. Other items retain the earlier provisional fallback.
+const ADULT_REFERENCE_ANCHORS = {
+  simultaneous: {
+    "3x3|2": -1.0,
+    "4x4|4":  0.0,
+    "5x5|7":  1.0
+  }
+};
+function provisionalItemDifficulty(r){
+  const key=`${r.gridSize}x${r.gridSize}|${r.load}`;
+  const anchor=ADULT_REFERENCE_ANCHORS[r.condition]?.[key];
+  if(anchor!==undefined) return {b:anchor,source:"adult-reference-anchor"};
+  // Not yet calibrated: retain legacy demonstration heuristic for non-anchor items.
+  return {b:0.40*(r.load-4)+0.25*(r.gridSize-3),source:"legacy-provisional-fallback"};
+}
+
 function updateBayesianShadow(condition,record){
   const prior=bayesState[condition]||makeBayesPrior(),pm=bayesMoments(prior);
-  const b=provisionalItemDifficulty(record),a=BAYES.a;
+  const difficulty=provisionalItemDifficulty(record),b=difficulty.b,a=BAYES.a;
   const pCorrect=prior.xs.map(theta=>logistic(a*(theta-b)));
   const likelihood=pCorrect.map(p=>record.exact?p:1-p);
   const raw=prior.p.map((p,i)=>p*likelihood[i]),evidence=raw.reduce((s,v)=>s+v,0);
   const posterior={xs:prior.xs,p:raw.map(v=>v/evidence)},qm=bayesMoments(posterior);
   const pAtMean=logistic(a*(pm.mean-b)),observedLikelihood=record.exact?pAtMean:1-pAtMean;
   bayesState[condition]=posterior;
-  const u={condition,trial:record.trial,gridSize:record.gridSize,load:record.load,exact:record.exact,a,b,
+  const u={condition,trial:record.trial,gridSize:record.gridSize,load:record.load,exact:record.exact,a,b,difficultySource:difficulty.source,
     priorMean:pm.mean,priorSd:pm.sd,pCorrectAtPriorMean:pAtMean,
     observedLikelihoodAtPriorMean:observedLikelihood,evidence,posteriorMean:qm.mean,posteriorSd:qm.sd};
   bayesHistory.push(u);record.bayes={...u};renderBayesianShadow(u,posterior);
 }
 function renderBayesianShadow(u,d){
   const f=x=>Number(x).toFixed(3);
-  $("bayesModelLine").textContent=`a = ${f(u.a)} · provisional b = ${f(u.b)} · response = ${u.exact?"exact":"non-exact"}`;
+  $("bayesModelLine").textContent=`a = ${f(u.a)} · b = ${f(u.b)} · ${u.difficultySource==="adult-reference-anchor"?"reference anchor":"provisional fallback"} · response = ${u.exact?"exact":"non-exact"}`;
   $("bayesUpdateLine").textContent=`At prior mean, P(exact) = ${f(u.pCorrectAtPriorMean)}. Likelihood of observed response there = ${f(u.observedLikelihoodAtPriorMean)}. At each θ: posterior ∝ prior × likelihood, then normalise.`;
   $("bayesPriorMean").textContent=f(u.priorMean);$("bayesPriorSd").textContent=f(u.priorSd);
   $("bayesPostMean").textContent=f(u.posteriorMean);$("bayesPostSd").textContent=f(u.posteriorSd);
